@@ -19,7 +19,7 @@
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "pack": "electron-builder --dir",
     "dist": "pnpm run build:engine:release && electron-vite build && electron-builder",
-    "postinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/patch-nsis-templates.ps1"
+    "postinstall": "node ../../scripts/patch-nsis-templates.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.0",
@@ -64,6 +64,7 @@
     "appId": "com.xuanyu.agent",
     "productName": "XuanYu Agent",
     "copyright": "Copyright © 2026 XuanYu. All rights reserved.",
+    "npmRebuild": false,
     "directories": {
       "output": "release-dist"
     },

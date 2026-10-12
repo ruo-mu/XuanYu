@@ -39,8 +39,13 @@ function Set-FileText([string]$path, [string]$old, [string]$new, [string]$marker
         Write-Host "skip  $($path): missing" -ForegroundColor Yellow
         return
     }
-    $text = Get-Content $path -Raw
-    if ($text -match [regex]::Escape($marker)) {
+    # The npm package templates use LF, while this script (and therefore the
+    # here-strings below) may be checked out with CRLF. Normalise both sides to
+    # LF before comparing so the patches apply regardless of line endings.
+    $text = (Get-Content $path -Raw) -replace "`r`n", "`n"
+    $old = $old -replace "`r`n", "`n"
+    $new = $new -replace "`r`n", "`n"
+    if ($text.Contains($new)) {
         Write-Host "ok    $([System.IO.Path]::GetFileName($path)): already patched ($marker)"
         return
     }
@@ -48,18 +53,20 @@ function Set-FileText([string]$path, [string]$old, [string]$new, [string]$marker
         Write-Host "WARN  $($path): expected text not found; patch ($marker) not applied" -ForegroundColor Yellow
         return
     }
-    Set-Content -LiteralPath $path -Value $text.Replace($old, $new) -NoNewline -Encoding UTF8
+    # Write UTF-8 without a BOM, matching the untouched npm templates.
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($path, $text.Replace($old, $new), $encoding)
     Write-Host "patch $([System.IO.Path]::GetFileName($path)): $marker"
 }
 
 # 1. customPageBeforeChangeDir (DB config page) hook after the install-mode page.
 $hookIn = @'
-!ifndef INSTALL_MODE_PER_ALL_USERS
+  !ifndef INSTALL_MODE_PER_ALL_USERS
     !insertmacro PAGE_INSTALL_MODE
   !endif
 '@
 $hookOut = @'
-!ifndef INSTALL_MODE_PER_ALL_USERS
+  !ifndef INSTALL_MODE_PER_ALL_USERS
     !insertmacro PAGE_INSTALL_MODE
   !endif
 
