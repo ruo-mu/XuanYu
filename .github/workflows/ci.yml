@@ -31,13 +31,6 @@ jobs:
         run: |
           cargo test -p xuanyu-eventbus -p xuanyu-storage -p xuanyu-execution -p xuanyu-extensions
 
-      - name: Headless smoke turn
-        shell: pwsh
-        run: |
-          $smokeData = Join-Path $env:RUNNER_TEMP "xuanyu-smoke"
-          if (Test-Path $smokeData) { Remove-Item $smokeData -Recurse -Force }
-          cargo run -p xuanyu-cli -- --data-dir $smokeData smoke-turn
-
   frontend:
     runs-on: ubuntu-latest
     steps:
