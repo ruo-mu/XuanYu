@@ -1,0 +1,59 @@
+{
+  "name": "@xuanyu/desktop-ui",
+  "private": true,
+  "version": "0.1.0-preview",
+  "description": "XuanYu Agent (玄语) — a local-first desktop AI agent workspace powered by a native Rust engine, with long-term memory and a plugin / MCP / skills marketplace.",
+  "author": {
+    "name": "ruomu",
+    "email": "c3166335486@163.com",
+    "url": "https://github.com/ruo-mu/XuanYu"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ruo-mu/XuanYu.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.5.0",
+    "@iconify-icons/icon-park": "^1.2.11",
+    "@iconify-icons/mdi": "^1.2.48",
+    "@iconify-icons/mingcute": "^1.2.9",
+    "@iconify-icons/simple-icons": "^1.2.74",
+    "@iconify/react": "^6.0.2",
+    "@types/diff": "^7.0.2",
+    "@uiw/react-markdown-preview": "^5.2.1",
+    "@uiw/react-md-editor": "^4.1.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "antd": "^5.22.0",
+    "diff": "^9.0.0",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
+    "lottie-web": "^5.13.0",
+    "lucide-react": "^0.460.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@iconify/types": "^2.0.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/react-syntax-highlighter": "^15.5.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.0.0"
+  }
+}

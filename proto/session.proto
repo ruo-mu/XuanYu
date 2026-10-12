@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package xuanyu.session.v1;
+
+enum BrainMode {
+  BRAIN_MODE_UNKNOWN = 0;
+  BRAIN_MODE_ROBOT = 1;
+  BRAIN_MODE_PERSON = 2;
+}
+
+message SessionInfo {
+  string id = 1;
+  string name = 2;
+  BrainMode brain_mode = 3;
+  int64 created_at_ms = 4;
+  int64 updated_at_ms = 5;
+  uint32 message_count = 6;
+  bool is_processing = 7;
+}
+
+message ChatMessage {
+  string role = 1;
+  string content = 2;
+  int64 timestamp_ms = 3;
+  string turn_id = 4;
+}

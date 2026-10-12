@@ -1,0 +1,572 @@
+{
+  "host_command_count": 127,
+  "ref_ws_count": 84,
+  "covered_count": 82,
+  "missing_count": 0,
+  "electron_only_count": 2,
+  "host_commands": [
+    "agent_create",
+    "agent_delete",
+    "agent_list",
+    "agent_update",
+    "app_init",
+    "app_status",
+    "app_updater_install",
+    "app_updater_relaunch",
+    "audit_list",
+    "capability_installed_list",
+    "capability_installed_mutate",
+    "channel_adapters_list",
+    "channel_connection_connect",
+    "channel_connection_disconnect",
+    "channel_connection_remove",
+    "channel_connection_upsert",
+    "channel_connections_list",
+    "channel_delivery_list",
+    "channel_qr_begin",
+    "channel_qr_cancel",
+    "config_capabilities",
+    "config_get",
+    "config_info",
+    "config_update",
+    "context_compact",
+    "context_rollback",
+    "context_status",
+    "control_plane_list_tasks",
+    "conversation_search",
+    "data_backup_export",
+    "data_backup_restore",
+    "diagnostics_export",
+    "event_dead_letters",
+    "event_replay",
+    "event_replay_filtered",
+    "extensions_list",
+    "feedback_submit",
+    "gateway_logs",
+    "git_branches",
+    "git_checkout",
+    "git_status",
+    "goal_action",
+    "goal_get",
+    "init_channel_plugin_install",
+    "init_channel_plugins_list",
+    "init_models_fetch",
+    "init_postgres_install",
+    "init_postgres_start",
+    "init_postgres_status",
+    "init_postgres_test_connection",
+    "launch_setup_app",
+    "marketplace_install_confirm",
+    "marketplace_install_plan",
+    "marketplace_install_status",
+    "marketplace_search",
+    "memory_create",
+    "memory_delete",
+    "memory_flush",
+    "memory_hit_list",
+    "memory_list",
+    "memory_maintenance_run",
+    "memory_pending_approve",
+    "memory_pending_list",
+    "memory_pending_reject",
+    "memory_profile_list",
+    "memory_profile_read",
+    "memory_profile_update",
+    "memory_search",
+    "memory_session_summaries_list",
+    "memory_session_summary_get",
+    "memory_snapshot_create",
+    "memory_snapshot_list",
+    "memory_snapshot_rollback",
+    "memory_update",
+    "permission_list",
+    "permission_respond",
+    "plugin_install",
+    "plugin_set_enabled",
+    "process_list",
+    "process_read",
+    "process_stop",
+    "question_respond",
+    "refresh_workers",
+    "rollback_list",
+    "rollback_run",
+    "run_cancel",
+    "run_list",
+    "run_replay",
+    "run_resume",
+    "run_timeline",
+    "session_abort",
+    "session_archive",
+    "session_create",
+    "session_delete",
+    "session_history",
+    "session_isolation_get",
+    "session_list",
+    "session_participants_list",
+    "session_pin",
+    "session_rename",
+    "session_reset_context",
+    "session_rewind",
+    "session_rewind_preview",
+    "session_send_message",
+    "session_threads_list",
+    "stats_get",
+    "storage_get_setup",
+    "storage_save_external",
+    "storage_test_external_connection",
+    "subagent_assess_merge",
+    "subagent_delegate_many",
+    "subagent_timeline",
+    "system_status",
+    "task_control",
+    "task_create",
+    "task_list",
+    "task_status",
+    "team_status",
+    "tool_catalog",
+    "tool_execute",
+    "trace_compare",
+    "trace_evidence",
+    "trace_timeline",
+    "workspace_clear",
+    "workspace_create",
+    "workspace_file_reject",
+    "workspace_open"
+  ],
+  "covered": [
+    {
+      "ws": "agent.create",
+      "host": "agent_create",
+      "via": "direct"
+    },
+    {
+      "ws": "agent.delete",
+      "host": "agent_delete",
+      "via": "direct"
+    },
+    {
+      "ws": "agent.list",
+      "host": "agent_list",
+      "via": "direct"
+    },
+    {
+      "ws": "agent.update",
+      "host": "agent_update",
+      "via": "direct"
+    },
+    {
+      "ws": "capability.installed.list",
+      "host": "capability_installed_list",
+      "via": "direct"
+    },
+    {
+      "ws": "capability.installed.mutate",
+      "host": "capability_installed_mutate",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.adapters.list",
+      "host": "channel_adapters_list",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.connection.connect",
+      "host": "channel_connection_connect",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.connection.disconnect",
+      "host": "channel_connection_disconnect",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.connection.remove",
+      "host": "channel_connection_remove",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.connection.upsert",
+      "host": "channel_connection_upsert",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.connections.list",
+      "host": "channel_connections_list",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.delivery.list",
+      "host": "channel_delivery_list",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.qr.begin",
+      "host": "channel_qr_begin",
+      "via": "direct"
+    },
+    {
+      "ws": "channel.qr.cancel",
+      "host": "channel_qr_cancel",
+      "via": "direct"
+    },
+    {
+      "ws": "chat.abort",
+      "host": "session_abort",
+      "via": "alias"
+    },
+    {
+      "ws": "chat.send",
+      "host": "session_send_message",
+      "via": "alias"
+    },
+    {
+      "ws": "config.capabilities",
+      "host": "config_capabilities",
+      "via": "direct"
+    },
+    {
+      "ws": "config.get",
+      "host": "config_get",
+      "via": "direct"
+    },
+    {
+      "ws": "config.save",
+      "host": "config_update",
+      "via": "alias"
+    },
+    {
+      "ws": "config.update",
+      "host": "config_update",
+      "via": "direct"
+    },
+    {
+      "ws": "context.compact",
+      "host": "context_compact",
+      "via": "direct"
+    },
+    {
+      "ws": "context.reset",
+      "host": "session_reset_context",
+      "via": "alias"
+    },
+    {
+      "ws": "context.rollback",
+      "host": "context_rollback",
+      "via": "direct"
+    },
+    {
+      "ws": "context.status",
+      "host": "context_status",
+      "via": "direct"
+    },
+    {
+      "ws": "conversation.search",
+      "host": "conversation_search",
+      "via": "direct"
+    },
+    {
+      "ws": "extensions.list",
+      "host": "extensions_list",
+      "via": "direct"
+    },
+    {
+      "ws": "feedback.submit",
+      "host": "feedback_submit",
+      "via": "direct"
+    },
+    {
+      "ws": "gateway.logs",
+      "host": "gateway_logs",
+      "via": "direct"
+    },
+    {
+      "ws": "git.branches",
+      "host": "git_branches",
+      "via": "direct"
+    },
+    {
+      "ws": "git.checkout",
+      "host": "git_checkout",
+      "via": "direct"
+    },
+    {
+      "ws": "git.status",
+      "host": "git_status",
+      "via": "direct"
+    },
+    {
+      "ws": "goal.action",
+      "host": "goal_action",
+      "via": "direct"
+    },
+    {
+      "ws": "goal.get",
+      "host": "goal_get",
+      "via": "direct"
+    },
+    {
+      "ws": "marketplace.install.confirm",
+      "host": "marketplace_install_confirm",
+      "via": "direct"
+    },
+    {
+      "ws": "marketplace.install.plan",
+      "host": "marketplace_install_plan",
+      "via": "direct"
+    },
+    {
+      "ws": "marketplace.install.status",
+      "host": "marketplace_install_status",
+      "via": "direct"
+    },
+    {
+      "ws": "marketplace.search",
+      "host": "marketplace_search",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.create",
+      "host": "memory_create",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.delete",
+      "host": "memory_delete",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.flush",
+      "host": "memory_flush",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.hit.list",
+      "host": "memory_hit_list",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.list",
+      "host": "memory_list",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.profile.list",
+      "host": "memory_profile_list",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.profile.read",
+      "host": "memory_profile_read",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.profile.update",
+      "host": "memory_profile_update",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.search",
+      "host": "memory_search",
+      "via": "direct"
+    },
+    {
+      "ws": "memory.update",
+      "host": "memory_update",
+      "via": "direct"
+    },
+    {
+      "ws": "permission.respond",
+      "host": "permission_respond",
+      "via": "direct"
+    },
+    {
+      "ws": "process.list",
+      "host": "process_list",
+      "via": "direct"
+    },
+    {
+      "ws": "process.read",
+      "host": "process_read",
+      "via": "direct"
+    },
+    {
+      "ws": "process.stop",
+      "host": "process_stop",
+      "via": "direct"
+    },
+    {
+      "ws": "question.respond",
+      "host": "question_respond",
+      "via": "direct"
+    },
+    {
+      "ws": "replay.request",
+      "host": "event_replay",
+      "via": "alias"
+    },
+    {
+      "ws": "run.cancel",
+      "host": "run_cancel",
+      "via": "direct"
+    },
+    {
+      "ws": "run.resume",
+      "host": "run_resume",
+      "via": "direct"
+    },
+    {
+      "ws": "session.archive",
+      "host": "session_archive",
+      "via": "direct"
+    },
+    {
+      "ws": "session.create",
+      "host": "session_create",
+      "via": "direct"
+    },
+    {
+      "ws": "session.delete",
+      "host": "session_delete",
+      "via": "direct"
+    },
+    {
+      "ws": "session.history",
+      "host": "session_history",
+      "via": "direct"
+    },
+    {
+      "ws": "session.list",
+      "host": "session_list",
+      "via": "direct"
+    },
+    {
+      "ws": "session.pin",
+      "host": "session_pin",
+      "via": "alias"
+    },
+    {
+      "ws": "session.rename",
+      "host": "session_rename",
+      "via": "direct"
+    },
+    {
+      "ws": "session.restore",
+      "host": "session_history",
+      "via": "alias"
+    },
+    {
+      "ws": "session.rewind",
+      "host": "session_rewind",
+      "via": "direct"
+    },
+    {
+      "ws": "session.rewind.preview",
+      "host": "session_rewind_preview",
+      "via": "direct"
+    },
+    {
+      "ws": "stats.get",
+      "host": "stats_get",
+      "via": "alias"
+    },
+    {
+      "ws": "subagent.timeline",
+      "host": "subagent_timeline",
+      "via": "direct"
+    },
+    {
+      "ws": "system.status",
+      "host": "system_status",
+      "via": "direct"
+    },
+    {
+      "ws": "task.cancel",
+      "host": "task_control",
+      "via": "alias"
+    },
+    {
+      "ws": "task.list",
+      "host": "task_list",
+      "via": "direct"
+    },
+    {
+      "ws": "task.pause",
+      "host": "task_control",
+      "via": "alias"
+    },
+    {
+      "ws": "task.resume",
+      "host": "task_control",
+      "via": "alias"
+    },
+    {
+      "ws": "task.retry",
+      "host": "task_control",
+      "via": "alias"
+    },
+    {
+      "ws": "task.status",
+      "host": "task_status",
+      "via": "direct"
+    },
+    {
+      "ws": "team.status",
+      "host": "team_status",
+      "via": "direct"
+    },
+    {
+      "ws": "tools.catalog",
+      "host": "tool_catalog",
+      "via": "alias"
+    },
+    {
+      "ws": "tools.catalog.get",
+      "host": "tool_catalog",
+      "via": "alias"
+    },
+    {
+      "ws": "workspace.clear",
+      "host": "workspace_clear",
+      "via": "direct"
+    },
+    {
+      "ws": "workspace.create",
+      "host": "workspace_create",
+      "via": "direct"
+    },
+    {
+      "ws": "workspace.file.reject",
+      "host": "workspace_file_reject",
+      "via": "direct"
+    },
+    {
+      "ws": "workspace.open",
+      "host": "workspace_open",
+      "via": "direct"
+    }
+  ],
+  "missing": [],
+  "electron_only": [
+    "providers.catalog",
+    "workspace.reveal"
+  ],
+  "aliases": {
+    "chat.send": "session_send_message",
+    "chat.abort": "session_abort",
+    "context.reset": "session_reset_context",
+    "config.save": "config_update",
+    "tools.catalog.get": "tool_catalog",
+    "tools.catalog": "tool_catalog",
+    "replay.request": "event_replay",
+    "stats.get": "stats_get",
+    "task.cancel": "task_control",
+    "task.pause": "task_control",
+    "task.resume": "task_control",
+    "task.retry": "task_control",
+    "session.restore": "session_history",
+    "providers.catalog": null,
+    "session.pin": "session_pin",
+    "workspace.pickFolder": null,
+    "workspace.reveal": null
+  }
+}

@@ -1,0 +1,53 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/xuanyu-desktop-host",
+  "crates/xuanyu-core",
+  "crates/xuanyu-protocol",
+  "crates/xuanyu-eventbus",
+  "crates/xuanyu-storage",
+  "crates/xuanyu-session",
+  "crates/xuanyu-execution",
+  "crates/xuanyu-extensions",
+  "crates/xuanyu-tools",
+  "crates/xuanyu-governance",
+  "crates/xuanyu-memory",
+  "crates/xuanyu-agents",
+  "crates/xuanyu-agent-bridge",
+  "crates/xuanyu-cli",
+  "crates/xuanyu-channels",
+]
+
+[workspace.package]
+version = "0.1.0-preview"
+edition = "2021"
+license = "MIT"
+authors = ["ruomu <c3166335486@163.com>"]
+repository = "https://github.com/ruo-mu/XuanYu"
+
+[workspace.dependencies]
+anyhow = "1"
+async-trait = "0.1"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream", "blocking"] }
+thiserror = "1"
+tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+url = "2"
+uuid = { version = "1", features = ["serde", "v4"] }
+tiktoken-rs = "0.7"
+rusqlite = { version = "0.32", features = ["bundled"] }
+clap = { version = "4", features = ["derive"] }
+axum = "0.8"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+tantivy = "0.22"
+deadpool-postgres = "0.14"
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4", "with-serde_json-1"] }
+sha2 = "0.10"
+hmac = "0.12"
+similar = "2"

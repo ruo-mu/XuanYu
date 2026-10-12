@@ -1,0 +1,29 @@
+[package]
+name = "xuanyu-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "XuanYu Agent CLI binaries (xuanyu, xuanyu-engine-server)"
+
+[[bin]]
+name = "xuanyu"
+path = "src/main.rs"
+
+[[bin]]
+name = "xuanyu-engine-server"
+path = "src/bin/engine_server.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-std", "io-util"] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
+xuanyu-core = { path = "../xuanyu-core" }
+xuanyu-desktop-host = { path = "../xuanyu-desktop-host" }
+xuanyu-eventbus = { path = "../xuanyu-eventbus" }
+xuanyu-protocol = { path = "../xuanyu-protocol" }
+xuanyu-storage = { path = "../xuanyu-storage" }

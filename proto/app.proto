@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package xuanyu.app.v1;
+
+message Envelope {
+  string id = 1;
+  string correlation_id = 2;
+  string trace_id = 3;
+  string source = 4;
+  string target = 5;
+  string kind = 6;
+  int64 timestamp_ms = 7;
+  bytes payload = 8;
+  map<string, string> meta = 9;
+}
+
+message AppError {
+  string code = 1;
+  string message = 2;
+  bool recoverable = 3;
+  string suggestion = 4;
+  map<string, string> context = 5;
+}

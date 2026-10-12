@@ -1,0 +1,17 @@
+[package]
+name = "xuanyu-execution"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Execution runtime: main loop, tool loop, context assembly, and token budget"
+
+[dependencies]
+async-trait.workspace = true
+anyhow.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiktoken-rs.workspace = true
+tokio.workspace = true
+tracing.workspace = true

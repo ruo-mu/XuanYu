@@ -1,0 +1,32 @@
+[package]
+name = "xuanyu-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Engine integration layer: AppCore, sessions, memory, marketplace, and channels"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+chrono.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+xuanyu-agents = { path = "../xuanyu-agents" }
+xuanyu-agent-bridge = { path = "../xuanyu-agent-bridge" }
+xuanyu-channels = { path = "../xuanyu-channels" }
+xuanyu-eventbus = { path = "../xuanyu-eventbus" }
+xuanyu-execution = { path = "../xuanyu-execution" }
+xuanyu-extensions = { path = "../xuanyu-extensions" }
+xuanyu-governance = { path = "../xuanyu-governance" }
+xuanyu-memory = { path = "../xuanyu-memory" }
+xuanyu-protocol = { path = "../xuanyu-protocol" }
+xuanyu-session = { path = "../xuanyu-session" }
+xuanyu-storage = { path = "../xuanyu-storage" }
+xuanyu-tools = { path = "../xuanyu-tools" }

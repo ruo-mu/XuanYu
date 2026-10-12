@@ -1,0 +1,18 @@
+[package]
+name = "xuanyu-desktop-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Desktop host bridge: exposes IPC commands that are transpiled automatically"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+xuanyu-core = { path = "../xuanyu-core" }
+xuanyu-eventbus = { path = "../xuanyu-eventbus" }
+xuanyu-protocol = { path = "../xuanyu-protocol" }
+xuanyu-storage = { path = "../xuanyu-storage" }

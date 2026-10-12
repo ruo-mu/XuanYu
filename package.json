@@ -1,0 +1,39 @@
+{
+  "name": "xuanyu-agent",
+  "private": true,
+  "version": "0.1.0-preview",
+  "description": "XuanYu Agent (玄语) — a local-first desktop AI agent workspace powered by a native Rust engine, with long-term memory and a plugin / MCP / skills marketplace.",
+  "author": {
+    "name": "ruomu",
+    "email": "c3166335486@163.com",
+    "url": "https://github.com/ruo-mu/XuanYu"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ruo-mu/XuanYu.git"
+  },
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --filter @xuanyu/desktop dev",
+    "build": "pnpm --filter @xuanyu/desktop build",
+    "gen:desktop-ipc": "python scripts/gen-desktop-dispatch.py && python scripts/gen-desktop-ipc-wrappers.py && python scripts/gen-ipc-command-map.py",
+    "typecheck": "pnpm --filter @xuanyu/desktop typecheck && pnpm --filter @xuanyu/desktop-ui typecheck",
+    "preview": "pnpm --filter @xuanyu/desktop preview",
+    "dist": "pnpm --filter @xuanyu/desktop dist",
+    "dev:legacy-ui": "pnpm --filter @xuanyu/desktop-ui dev",
+    "build:legacy-ui": "pnpm --filter @xuanyu/desktop-ui build",
+    "smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke.ps1",
+    "build:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "sharp"
+    ]
+  }
+}

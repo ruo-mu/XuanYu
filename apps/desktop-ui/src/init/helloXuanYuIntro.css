@@ -1,0 +1,117 @@
+/**
+ * 开屏动画：hello xuanyu 霓虹描边。主程序启动时覆盖整个窗口播放。
+ */
+
+/* 盖住标题栏以下区域：动画播放时窗口按钮仍可点击。 */
+.xy-splash {
+  position: fixed;
+  top: var(--xy-titlebar-height, 40px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9999;
+}
+
+.xy-init-intro {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 55% 49%, rgba(35, 84, 125, 0.26), transparent 36%),
+    radial-gradient(circle at 52% 58%, rgba(12, 26, 44, 0.74), transparent 58%),
+    linear-gradient(180deg, #01030a 0%, #071323 50%, #01030a 100%);
+  animation: xy-intro-in 700ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.xy-init-intro-glow {
+  position: absolute;
+  width: min(58vw, 760px);
+  height: min(21vw, 220px);
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 22% 50%, rgba(20, 235, 217, 0.18), transparent 52%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 240, 56, 0.14), transparent 52%),
+    radial-gradient(ellipse at 78% 50%, rgba(255, 107, 158, 0.18), transparent 52%);
+  filter: blur(58px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.xy-init-lottie {
+  position: relative;
+  width: min(72vw, 1200px, calc(58vh * 1844 / 853));
+  aspect-ratio: 1844 / 853;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  filter:
+    drop-shadow(0 0 18px rgba(20, 235, 217, 0.22))
+    drop-shadow(0 0 42px rgba(255, 158, 71, 0.14))
+    drop-shadow(0 0 42px rgba(255, 107, 158, 0.12));
+}
+
+.xy-init-lottie.is-ready {
+  opacity: 1;
+}
+
+.xy-init-lottie svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.xy-init-lottie.is-ready svg {
+  opacity: 1;
+}
+
+.xy-init-lottie:not(.is-ready) .xy-intro-stroke {
+  animation-play-state: paused;
+}
+
+.xy-intro-stroke-stack {
+  transform: translateZ(0);
+}
+
+.xy-intro-stroke {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: var(--xy-stroke-len, 1000);
+  stroke-dashoffset: var(--xy-stroke-len, 1000);
+  animation: xy-intro-draw var(--xy-intro-duration, 5.2s) var(--xy-intro-easing, linear) var(--xy-intro-delay, 0.2s) forwards;
+}
+
+.xy-intro-stroke-glow {
+  opacity: 0.34;
+  filter: url(#xy-intro-neon);
+}
+
+.xy-intro-stroke-mid {
+  opacity: 0.68;
+}
+
+.xy-intro-stroke-core {
+  opacity: 1;
+}
+
+@keyframes xy-intro-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes xy-intro-in {
+  from {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

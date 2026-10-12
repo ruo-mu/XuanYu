@@ -1,0 +1,90 @@
+/* Electron shell chrome: integrated title bar + draggable regions */
+
+:root.xy-electron {
+  --xy-titlebar-height: 40px;
+}
+
+.xy-electron .xy-titlebar {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.xy-electron .xy-titlebar-leading,
+.xy-electron .xy-titlebar-menus,
+.xy-electron .xy-titlebar-trailing,
+.xy-electron .xy-titlebar-sidebar-btn,
+.xy-electron .xy-titlebar-menu-btn,
+.xy-electron .xy-titlebar-action-btn,
+.xy-electron .xy-titlebar-caption,
+.xy-electron .xy-titlebar-caption-btn,
+.xy-electron .xy-app-menu-panel,
+.xy-electron .xy-terminal-panel,
+.xy-electron .xy-terminal-fab,
+.xy-electron .xy-theme-popover,
+.xy-electron .xy-theme-popover-panel {
+  -webkit-app-region: no-drag;
+}
+
+.xy-electron.xy-platform-win32 .xy-titlebar {
+  min-height: var(--xy-titlebar-height);
+  height: var(--xy-titlebar-height);
+  padding-right: 0;
+}
+
+.xy-electron.xy-platform-darwin .xy-titlebar {
+  padding-left: 78px;
+}
+
+.xy-electron .xy-app-shell {
+  overflow: hidden;
+}
+
+.xy-electron .xy-app-sidebar,
+.xy-electron .xy-app-sidebar-brand-btn,
+.xy-electron .xy-app-sidebar-search-btn,
+.xy-electron .xy-app-sidebar-nav-item,
+.xy-electron .xy-app-sidebar-footer-btn {
+  -webkit-app-region: no-drag;
+}
+
+.xy-electron.xy-platform-win32 .ant-modal-mask,
+.xy-electron.xy-platform-win32 .ant-modal-wrap {
+  top: var(--xy-titlebar-height, 40px);
+}
+
+.xy-electron .xy-main-shell {
+  background: transparent;
+}
+
+/* Windows 自绘 caption：贴齐右上角，尺寸接近系统按钮 */
+.xy-titlebar-caption {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 100%;
+  margin-left: 4px;
+}
+
+.xy-titlebar-caption-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--xy-text) 78%, transparent);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.xy-titlebar-caption-btn:hover {
+  background: color-mix(in srgb, var(--xy-text) 8%, transparent);
+  color: var(--xy-text);
+}
+
+.xy-titlebar-caption-btn.is-close:hover {
+  background: #e81123;
+  color: #fff;
+}

@@ -1,0 +1,21 @@
+[package]
+name = "xuanyu-session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Session domain: SessionManager, threads, isolation, and message queue"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+xuanyu-eventbus = { path = "../xuanyu-eventbus" }
+xuanyu-governance = { path = "../xuanyu-governance" }
+xuanyu-protocol = { path = "../xuanyu-protocol" }
+xuanyu-storage = { path = "../xuanyu-storage" }

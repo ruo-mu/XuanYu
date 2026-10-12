@@ -1,0 +1,22 @@
+[package]
+name = "xuanyu-memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Long-term memory: pgvector semantic search, full-text search, Tantivy, and embeddings"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+xuanyu-storage = { path = "../xuanyu-storage" }
+deadpool-postgres = { workspace = true }
+tokio-postgres = { workspace = true }
+tantivy = { workspace = true }

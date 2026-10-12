@@ -1,0 +1,16 @@
+{
+  "extends": "../desktop-ui/tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@xuanyu/contracts": ["../desktop-ui/src/foundation/contracts"],
+      "@xuanyu/contracts/*": ["../desktop-ui/src/foundation/contracts/*"],
+      "@shared/*": ["src/shared/*"]
+    }
+  },
+  "include": [
+    "../desktop-ui/src/**/*",
+    "src/shared/**/*"
+  ]
+}

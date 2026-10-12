@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cargo check (core stack)
+        shell: pwsh
+        run: |
+          cargo check -p xuanyu-protocol -p xuanyu-eventbus -p xuanyu-storage -p xuanyu-channels -p xuanyu-extensions -p xuanyu-agents -p xuanyu-core -p xuanyu-cli
+
+      - name: Cargo clippy (workspace, deny warnings)
+        shell: pwsh
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Cargo test (fast crates)
+        shell: pwsh
+        run: |
+          cargo test -p xuanyu-eventbus -p xuanyu-storage -p xuanyu-execution -p xuanyu-extensions
+
+      - name: Headless smoke turn
+        shell: pwsh
+        run: |
+          $smokeData = Join-Path $env:RUNNER_TEMP "xuanyu-smoke"
+          if (Test-Path $smokeData) { Remove-Item $smokeData -Recurse -Force }
+          cargo run -p xuanyu-cli -- --data-dir $smokeData smoke-turn
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Frontend typecheck
+        run: pnpm install --frozen-lockfile && pnpm run typecheck -- --pretty false
+
+      - name: Desktop IPC gen freshness
+        run: python scripts/check-desktop-ipc-fresh.py

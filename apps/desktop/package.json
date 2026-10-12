@@ -1,0 +1,136 @@
+{
+  "name": "@xuanyu/desktop",
+  "private": true,
+  "version": "0.1.0-preview",
+  "description": "XuanYu Agent (玄语) — a local-first desktop AI agent workspace powered by a native Rust engine, with long-term memory and a plugin / MCP / skills marketplace.",
+  "author": {
+    "name": "ruomu",
+    "email": "c3166335486@163.com",
+    "url": "https://github.com/ruo-mu/XuanYu"
+  },
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "pnpm run build:engine && electron-vite dev",
+    "build": "pnpm run build:engine && electron-vite build",
+    "build:engine": "cargo build -p xuanyu-cli --bins",
+    "build:engine:release": "cargo build -p xuanyu-cli --bins --release",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "pack": "electron-builder --dir",
+    "dist": "pnpm run build:engine:release && electron-vite build && electron-builder",
+    "postinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/patch-nsis-templates.ps1"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.5.0",
+    "@iconify-icons/icon-park": "^1.2.11",
+    "@iconify-icons/mdi": "^1.2.48",
+    "@iconify-icons/mingcute": "^1.2.9",
+    "@iconify-icons/simple-icons": "^1.2.74",
+    "@iconify/react": "^6.0.2",
+    "@types/diff": "^7.0.2",
+    "@uiw/react-markdown-preview": "^5.2.1",
+    "@uiw/react-md-editor": "^4.1.1",
+    "antd": "^5.22.0",
+    "diff": "^9.0.0",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
+    "lottie-web": "^5.13.0",
+    "lucide-react": "^0.460.0",
+    "node-pty": "^1.1.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@iconify/types": "^2.0.0",
+    "@types/node": "^22.10.5",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/react-syntax-highlighter": "^15.5.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.xuanyu.agent",
+    "productName": "XuanYu Agent",
+    "copyright": "Copyright © 2026 XuanYu. All rights reserved.",
+    "directories": {
+      "output": "release-dist"
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      {
+        "from": "node_modules/node-pty",
+        "to": "node_modules/node-pty",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/node-pty/**"
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "XuanYu Agent",
+      "uninstallDisplayName": "XuanYu Agent",
+      "runAfterFinish": true,
+      "include": "build/installer.nsh",
+      "license": "build/install-license.txt",
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "installerIcon": "build/icons/icon.ico",
+      "uninstallerIcon": "build/icons/icon.ico",
+      "installerHeaderIcon": "build/icons/icon.ico"
+    },
+    "win": {
+      "icon": "build/icons/icon.ico",
+      "target": [
+        "nsis"
+      ],
+      "extraResources": [
+        {
+          "from": "../../target/release/xuanyu-engine-server.exe",
+          "to": "bin/xuanyu-engine-server.exe"
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "extraResources": [
+        {
+          "from": "../../target/release/xuanyu-engine-server",
+          "to": "bin/xuanyu-engine-server"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "extraResources": [
+        {
+          "from": "../../target/release/xuanyu-engine-server",
+          "to": "bin/xuanyu-engine-server"
+        }
+      ]
+    }
+  }
+}
