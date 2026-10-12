@@ -14,6 +14,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.96.1
         with:
           targets: x86_64-pc-windows-msvc
+          components: clippy
 
       - name: Cargo check (core stack)
         shell: pwsh
@@ -50,7 +51,7 @@ jobs:
           cache: pnpm
 
       - name: Frontend typecheck
-        run: pnpm install --frozen-lockfile && pnpm run typecheck -- --pretty false
+        run: pnpm install --frozen-lockfile && pnpm run typecheck
 
       - name: Desktop IPC gen freshness
         run: python scripts/check-desktop-ipc-fresh.py
