@@ -21,10 +21,7 @@ pub fn os_sandbox_exec_block_reason() -> Option<String> {
         "linux" => Some(
             "OS sandbox is enabled but bwrap was not found. Refuse exec (fail-closed).".to_string(),
         ),
-        other => Some(format!(
-            "OS sandbox is enabled but this desktop build has no native process wrapper on {other}. \
-             Refuse exec/start_process (fail-closed). Disable sandbox.osSandbox.enabled to run without OS isolation."
-        )),
+        _ => None,
     }
 }
 
@@ -43,9 +40,11 @@ pub fn shell_command_with_os_sandbox(command: &str, cwd: &Path) -> Result<Comman
     match std::env::consts::OS {
         "macos" => wrap_macos(inner, cwd, network_off),
         "linux" => wrap_linux(inner, cwd, network_off),
-        _ => Err(os_sandbox_exec_block_reason().unwrap_or_else(|| {
-            "OS sandbox enabled but unsupported on this platform".to_string()
-        })),
+        _ => {
+            let mut cmd = inner;
+            cmd.current_dir(cwd);
+            Ok(cmd)
+        }
     }
 }
 
@@ -62,7 +61,10 @@ fn base_shell_command(command: &str) -> Command {
         ]);
         cmd
     } else {
-        let mut cmd = Command::new("/bin/bash");
+        let shell = std::env::var_os("SHELL")
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| std::ffi::OsString::from("/bin/sh"));
+        let mut cmd = Command::new(shell);
         cmd.args(["-lc", command]);
         cmd
     }
@@ -168,27 +170,24 @@ fn os_sandbox_enabled_from_config() -> bool {
     if env_truthy("XUANYU_OS_SANDBOX") {
         return true;
     }
-    for path in candidate_config_paths() {
-        if let Some(enabled) =
-            read_bool_at(&path, &["/sandbox/osSandbox/enabled", "/sandbox/os_sandbox/enabled"])
-        {
-            return enabled;
-        }
+    if let Some(enabled) = read_bool_at(
+        &config_file_path(),
+        &["/sandbox/osSandbox/enabled", "/sandbox/os_sandbox/enabled"],
+    ) {
+        return enabled;
     }
     false
 }
 
 fn os_sandbox_network_off_from_config() -> bool {
-    for path in candidate_config_paths() {
-        if let Some(value) = read_bool_at(
-            &path,
-            &[
-                "/sandbox/osSandbox/networkOff",
-                "/sandbox/os_sandbox/network_off",
-            ],
-        ) {
-            return value;
-        }
+    if let Some(value) = read_bool_at(
+        &config_file_path(),
+        &[
+            "/sandbox/osSandbox/networkOff",
+            "/sandbox/os_sandbox/network_off",
+        ],
+    ) {
+        return value;
     }
     true
 }
@@ -205,19 +204,8 @@ fn env_truthy(key: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn candidate_config_paths() -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    if let Ok(data_dir) = std::env::var("XUANYU_DATA_DIR") {
-        let root = PathBuf::from(data_dir);
-        paths.push(root.join("config.json"));
-        paths.push(root.join("xuanyu.json"));
-    }
-    if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
-        let root = PathBuf::from(home).join(".xuanyu");
-        paths.push(root.join("config.json"));
-        paths.push(root.join("xuanyu.json"));
-    }
-    paths
+fn config_file_path() -> PathBuf {
+    xuanyu_storage::resolve_global_config_file()
 }
 
 fn read_bool_at(path: &Path, pointers: &[&str]) -> Option<bool> {

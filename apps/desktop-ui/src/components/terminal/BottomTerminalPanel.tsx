@@ -31,7 +31,7 @@ function resolvePreferredCwd(): string | undefined {
 }
 
 function defaultShell(): TerminalShellKind {
-  return window.xuanyu?.platform === 'win32' ? 'powershell' : 'bash';
+  return window.xuanyu?.platform === 'win32' ? 'powershell' : 'shell';
 }
 
 export default function BottomTerminalPanel() {
@@ -200,10 +200,10 @@ export default function BottomTerminalPanel() {
                 type="button"
                 className="xy-terminal-add-item"
                 role="menuitem"
-                onClick={() => void createTab('bash')}
+                onClick={() => void createTab('shell')}
               >
                 <SquareTerminal size={14} strokeWidth={1.75} />
-                <span className="xy-terminal-add-label">{t('terminal.shell.bash', 'Bash')}</span>
+                <span className="xy-terminal-add-label">{t('terminal.shell.default', 'Shell')}</span>
               </button>
             )}
           </div>,

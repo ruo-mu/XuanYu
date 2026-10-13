@@ -2,7 +2,7 @@
 import { configGet, configInfo, configUpdate, initChannelPluginsList, initChannelPluginInstall } from '../ipc/desktopIpc';
 import { DEFAULT_PERMISSION_RULES, DEFAULT_PERMISSIONS } from '../foundation/config/toolEnablement';
 import { DESKTOP_GATEWAY_DEFAULT } from '../foundation/config/types';
-import { globalAppDir, resolveGlobalConfigFile } from '../foundation/config/paths';
+import { resolveGlobalConfigFile } from '../foundation/config/paths';
 import type { AppConfig } from '../stores/configStore';
 import type { ProviderCatalogEntry } from '../protocol';
 import {
@@ -68,7 +68,6 @@ export interface InitDraft {
 }
 
 export interface InitMeta {
-  appDataDir: string;
   configPath: string;
   configExists: boolean;
   locale: InitLocale;
@@ -114,9 +113,7 @@ export async function fetchInitMeta(locale: InitLocale): Promise<InitMeta> {
   const info = await loadConfigInfo();
   const configPath = info?.path || resolveGlobalConfigFile();
   const saved = await loadSavedConfig();
-  const appDataDir = info?.dataDir || globalAppDir();
   return {
-    appDataDir,
     configPath,
     configExists: info?.exists ?? !!saved,
     locale,
@@ -312,9 +309,9 @@ function createDefaultConfig(locale: InitLocale): InitConfigDraft {
       directories: ['plugins'],
       marketplacePath: undefined,
     },
-    // 数据库连接串由安装器写进全局配置（memory.backend / memory.postgres.connectionString）。
-    // 向导只补充阈值类字段，不写 backend，避免覆盖安装器写入的连接串（configUpdate 是深合并）。
+    // 数据库形态固定为内置 PostgreSQL + pgvector，向导只写非连接类阈值字段。
     memory: {
+      backend: 'postgres',
       maxEntries: 1000,
       cleanupImportanceThreshold: 3,
       postgres: {

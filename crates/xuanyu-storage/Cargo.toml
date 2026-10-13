@@ -9,11 +9,8 @@ description = "Storage and control plane: connection pool, session tables, and e
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
-rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sha2.workspace = true
 tokio.workspace = true
-reqwest = { workspace = true, default-features = false, features = ["blocking", "rustls-tls"] }
 deadpool-postgres = { workspace = true }
 tokio-postgres = { workspace = true }

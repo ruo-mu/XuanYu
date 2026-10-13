@@ -14,11 +14,7 @@ pub struct SecurePathValidator {
 impl SecurePathValidator {
     pub fn new(project_root: impl AsRef<Path>) -> Self {
         let project = normalize_path(project_root.as_ref());
-        let home = std::env::var("USERPROFILE")
-            .or_else(|_| std::env::var("HOME"))
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("."));
-        let app_data = normalize_path(&home.join(".xuanyu"));
+        let app_data = normalize_path(&xuanyu_storage::runtime_data_root());
         let tmp = normalize_path(&std::env::temp_dir());
         Self {
             allowed_roots: vec![project, app_data, tmp],

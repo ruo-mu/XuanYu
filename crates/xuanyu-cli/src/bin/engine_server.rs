@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 use xuanyu_core::AppCore;
 use xuanyu_desktop_host::invoke_command;
 use xuanyu_protocol::AppEvent;
-use xuanyu_storage::{default_app_data_dir, StorageConfig};
+use xuanyu_storage::{runtime_data_root, StorageConfig};
 
 #[derive(Debug, Deserialize)]
 struct RpcRequest {
@@ -50,9 +50,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let data_dir = std::env::var_os("XUANYU_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(default_app_data_dir);
+    let data_dir = runtime_data_root();
     let core = Arc::new(AppCore::new(StorageConfig::for_data_dir(data_dir)));
     // Resume incomplete marketplace catalogs immediately (MCP/skills can be tens of thousands).
     std::thread::Builder::new()

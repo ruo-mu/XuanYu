@@ -1,21 +1,6 @@
 // Auto-generated — python scripts/gen-desktop-dispatch.py
 
 
-async fn dispatch_init_postgres_install(core: &AppCore, params: Value) -> Result<Value, String> {
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Params { skip_download: Option<bool>, install_pgvector: Option<bool> }
-    let payload: Params = serde_json::from_value(params).map_err(|e| e.to_string())?;
-    let result = core.init_postgres_install(
-        serde_json::json!({
-            "skipDownload": payload.skip_download.unwrap_or(false),
-            "installPgvector": payload.install_pgvector.unwrap_or(true),
-        }),
-        None,
-    ).await;
-    serde_json::to_value(result).map_err(|e| e.to_string())
-}
-
 async fn dispatch_permission_respond(core: &AppCore, params: Value) -> Result<Value, String> {
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -667,28 +652,8 @@ async fn dispatch_init_models_fetch(core: &AppCore, params: Value) -> Result<Val
         Err(e) => Err(e),
     }
 }
-async fn dispatch_init_postgres_status(core: &AppCore, params: Value) -> Result<Value, String> {
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Params {
-        #[serde(default)]
-        connection_string: Option<String>,
-    }
-    let input: Params = serde_json::from_value(params).map_err(|e| e.to_string())?;
-    let result: Result<Value, String> = init_postgres_status(core, input.connection_string).await;
-    match result {
-        Ok(v) => Ok(serde_json::to_value(v).map_err(|e| e.to_string())?),
-        Err(e) => Err(e),
-    }
-}
-async fn dispatch_init_postgres_test_connection(core: &AppCore, params: Value) -> Result<Value, String> {
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Params {
-        connection_string: String,
-    }
-    let input: Params = serde_json::from_value(params).map_err(|e| e.to_string())?;
-    let result: Result<Value, String> = init_postgres_test_connection(core, input.connection_string).await;
+async fn dispatch_init_postgres_status(core: &AppCore) -> Result<Value, String> {
+    let result: Result<Value, String> = init_postgres_status(core).await;
     match result {
         Ok(v) => Ok(serde_json::to_value(v).map_err(|e| e.to_string())?),
         Err(e) => Err(e),
@@ -703,32 +668,6 @@ async fn dispatch_init_postgres_start(core: &AppCore) -> Result<Value, String> {
 }
 async fn dispatch_storage_get_setup(core: &AppCore) -> Result<Value, String> {
     let result: Result<Value, String> = storage_get_setup(core).await;
-    match result {
-        Ok(v) => Ok(serde_json::to_value(v).map_err(|e| e.to_string())?),
-        Err(e) => Err(e),
-    }
-}
-async fn dispatch_storage_test_external_connection(core: &AppCore, params: Value) -> Result<Value, String> {
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Params {
-        connection_string: String,
-    }
-    let input: Params = serde_json::from_value(params).map_err(|e| e.to_string())?;
-    let result: Result<Value, String> = storage_test_external_connection(core, input.connection_string).await;
-    match result {
-        Ok(v) => Ok(serde_json::to_value(v).map_err(|e| e.to_string())?),
-        Err(e) => Err(e),
-    }
-}
-async fn dispatch_storage_save_external(core: &AppCore, params: Value) -> Result<Value, String> {
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Params {
-        connection_string: String,
-    }
-    let input: Params = serde_json::from_value(params).map_err(|e| e.to_string())?;
-    let result: Result<Value, String> = storage_save_external(core, input.connection_string).await;
     match result {
         Ok(v) => Ok(serde_json::to_value(v).map_err(|e| e.to_string())?),
         Err(e) => Err(e),
@@ -1618,7 +1557,6 @@ pub async fn invoke_command(core: Arc<AppCore>, command: &str, params: Value) ->
     let managed = CoreState(core);
     match command {
 
-        "init_postgres_install" => dispatch_init_postgres_install(&managed.0, params).await,
         "app_updater_install" => Err("Electron shell handles updates".to_string()),
         "app_updater_relaunch" => Err("Electron shell handles relaunch".to_string()),
         "launch_setup_app" => Err("Electron shell handles setup".to_string()),
@@ -1670,12 +1608,9 @@ pub async fn invoke_command(core: Arc<AppCore>, command: &str, params: Value) ->
         "config_update" => dispatch_config_update(&managed.0, params).await,
         "config_capabilities" => dispatch_config_capabilities(&managed.0).await,
         "init_models_fetch" => dispatch_init_models_fetch(&managed.0, params).await,
-        "init_postgres_status" => dispatch_init_postgres_status(&managed.0, params).await,
-        "init_postgres_test_connection" => dispatch_init_postgres_test_connection(&managed.0, params).await,
+        "init_postgres_status" => dispatch_init_postgres_status(&managed.0).await,
         "init_postgres_start" => dispatch_init_postgres_start(&managed.0).await,
         "storage_get_setup" => dispatch_storage_get_setup(&managed.0).await,
-        "storage_test_external_connection" => dispatch_storage_test_external_connection(&managed.0, params).await,
-        "storage_save_external" => dispatch_storage_save_external(&managed.0, params).await,
         "init_channel_plugins_list" => dispatch_init_channel_plugins_list(&managed.0).await,
         "init_channel_plugin_install" => dispatch_init_channel_plugin_install(&managed.0, params).await,
         "system_status" => dispatch_system_status(&managed.0).await,

@@ -15,7 +15,6 @@ DISPATCH = ROOT / "crates/xuanyu-desktop-host/src/dispatch_gen.inc"
 OUT = ROOT / "apps/desktop-ui/src/ipc/desktopIpc.gen.ts"
 
 SKIP = {
-    "init_postgres_install",
     "permission_respond",
     "event_replay_filtered",
     "app_updater_install",

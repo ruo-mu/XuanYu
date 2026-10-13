@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/platform-Windows%2010%2B-blue"><img src="https://img.shields.io/badge/platform-Windows%2010%2B-blue" alt="Platform"/></a>
+  <a href="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform"/></a>
   <a href="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9"><img src="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9" alt="Version"/></a>
   <a href="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6"><img src="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6" alt="Stack technique"/></a>
   <a href="https://img.shields.io/badge/engine-15%20crates-16a34a"><img src="https://img.shields.io/badge/engine-15%20crates-16a34a" alt="Cargo Workspace"/></a>
@@ -27,10 +27,10 @@
 
 ---
 
-**玄语 (XuanYu Agent)** est un espace de travail d'agent IA de bureau **local-first**. Le raisonnement, l'exécution des outils et la gouvernance de sécurité s'exécutent dans un processus natif Rust dédié ; Electron ne porte que l'interface et les interactions avec l'appareil. Sessions, mémoire à long terme et journaux d'exécution résident intégralement dans **votre propre PostgreSQL** (base portable embarquée ou instance existante) — utilisable hors ligne, les données ne quittent pas la machine, tout en pouvant se connecter à n'importe quel modèle de premier plan et à des capacités tierces.
+**玄语 (XuanYu Agent)** est un espace de travail d'agent IA de bureau **local-first**, avec prise en charge native de Windows, macOS et Linux. Le raisonnement, l'exécution des outils et la gouvernance de sécurité s'exécutent dans un processus natif Rust dédié ; Electron ne porte que l'interface et les interactions avec l'appareil. Sessions, mémoire à long terme et journaux d'exécution résident intégralement dans le **PostgreSQL fourni avec l'application** (pgvector inclus) — utilisable hors ligne, les données ne quittent pas la machine, tout en pouvant se connecter à n'importe quel modèle de premier plan et à des capacités tierces.
 
 > [!NOTE]
-> Version d'aperçu `0.1.0-preview` actuelle, plateforme publiée : **Windows 10+**. macOS / Linux figurent sur la [feuille de route](#feuille-de-route).
+> Version d'aperçu `0.1.0-preview` actuelle, prise en charge native : **Windows 10+, macOS (x64 / arm64) et Linux (x64)**.
 
 ## Table des matières
 
@@ -76,7 +76,7 @@ Trois axes de conception :
 
 - **Découplage des processus** — Le moteur est un processus indépendant qui dialogue en bidirectionnel avec la coque de bureau via JSON-RPC sur stdin/stdout (voir [engine_server.rs](../crates/xuanyu-cli/src/bin/engine_server.rs)). Il ne dépend pas de l'interface : il peut s'exécuter et se tester isolément.
 - **Piloté par événements** — Toute variation asynchrone dans le moteur (incréments de Turn, progression des outils, demandes d'autorisation, mises à jour de mémoire, etc.) passe par `eventbus`, sérialisée en `AppEvent` et poussée activement vers l'UI. L'UI ne fait aucun polling et prend naturellement en charge l'abonnement multi-clients.
-- **Stockage à source unique de vérité** — Sessions, messages, mémoire, journaux d'exécution et journaux d'événements résident tous dans PostgreSQL ; la base portable embarquée et une base existante partagent le même schéma.
+- **Stockage à source unique de vérité** — Sessions, messages, mémoire, journaux d'exécution et journaux d'événements résident tous dans le PostgreSQL embarqué, avec un schéma unique.
 
 ## Structure du workspace
 
@@ -103,7 +103,7 @@ Aperçu des crates côté moteur :
 | `xuanyu-eventbus` | Bus d'événements : spine / router / transformer / backpressure |
 | `xuanyu-storage` | Stockage et plan de contrôle : pool de connexions / tables de session / PostgreSQL embarqué |
 | `xuanyu-protocol` | Contrats de protocole : Envelope / AppEvent / AppError / DTO |
-| `xuanyu-cli` | CLI et engine-server (avec la commande auxiliaire `db-external`) |
+| `xuanyu-cli` | CLI et engine-server |
 | `xuanyu-desktop-host` | Pont hôte de bureau : expose des commandes IPC transcrites automatiquement |
 | `xuanyu-agent-bridge` | Pont Agent : liaison d'espace de travail des sous-Agents |
 | `xuanyu-agents` | Runtime des sous-Agents : watchdog / assess_merge |
@@ -152,18 +152,23 @@ Après avoir modifié les capacités du moteur, exécutez `pnpm gen:desktop-ipc`
 
 ### Utilisation directe (recommandée)
 
-Rendez-vous dans [Releases](https://github.com/ruo-mu/XuanYu/releases) pour télécharger le dernier `XuanYu Agent Setup <version>.exe` et lancez l'installation par double-clic. Au premier démarrage, l'assistant de configuration s'ouvre : choisissez un modèle et vous pouvez commencer.
+Rendez-vous dans [Releases](https://github.com/ruo-mu/XuanYu/releases) pour télécharger le paquet correspondant à votre plateforme ; il fonctionne dès l'installation. Au premier démarrage, l'assistant de configuration s'ouvre : choisissez un modèle et vous pouvez commencer.
 
-L'installateur prend en charge deux modes de base de données :
+| Plateforme | Installateur | Portable |
+|------|------|------|
+| Windows | `nsis` | `zip` |
+| macOS | `dmg` | `zip` |
+| Linux | `deb` | `AppImage`, `tar.gz` |
 
-| Mode | Description |
-|------|------|
-| **PostgreSQL portable embarqué** | Téléchargé et initialisé automatiquement (extension pgvector incluse), **prêt à l'emploi**, sans configuration supplémentaire |
-| **Connexion à une base existante** | Renseignez une chaîne de connexion et testez la connectivité (délai d'expiration intégré de 8 s) ; réutilisez votre instance PostgreSQL 15+ existante |
+Les artefacts suivent la nomenclature `XuanYu-Agent-<version>-<os>[-<arch>].<ext>`, par exemple `XuanYu-Agent-0.1.0-preview-windows-setup.exe`, `XuanYu-Agent-0.1.0-preview-mac-arm64.dmg` ou `XuanYu-Agent-0.1.0-preview-linux.AppImage` ; macOS porte `arch` en raison de ses deux architectures, les autres plateformes pouvant l'omettre. Les versions portables utilisent les mêmes répertoires standard de la plateforme que l'installateur et n'écrivent jamais de données dans le répertoire d'installation.
+
+PostgreSQL + pgvector sont intégrés à l'artefact : récupérés au moment du build, sans téléchargement ni décompression à l'installation ou à l'exécution. Les paramètres de connexion sont fixés par l'application : aucune chaîne de connexion, aucun hôte, port ou identifiant à configurer, et le premier démarrage ne nécessite pas de réseau.
+
+Les paquets ne sont ni signés ni notariés lors de cette étape : sur macOS, Gatekeeper bloque le premier lancement (clic droit pour ouvrir et autoriser), et sur Windows un avertissement SmartScreen « éditeur inconnu » s'affiche.
 
 ### Développement depuis les sources
 
-Prérequis : Rust stable (`x86_64-pc-windows-msvc`), Node.js 20+, pnpm.
+Prérequis : Rust stable, Node.js 22+, pnpm.
 
 ```bash
 pnpm install
@@ -184,7 +189,7 @@ pnpm gen:desktop-ipc   # Régénère le contrat IPC après modification des capa
 pnpm dist
 ```
 
-Cette commande enchaîne : compilation du moteur en mode release → build du front-end → empaquetage de l'installateur NSIS. Les artefacts se trouvent dans `apps/desktop/release-dist/`.
+Cette commande enchaîne : compilation du moteur en mode release → build du front-end → empaquetage des artefacts de distribution pour la plateforme courante (Windows `nsis` / `zip`, macOS `dmg` / `zip`, Linux `AppImage` / `deb` / `tar.gz`). Les artefacts se trouvent dans `apps/desktop/release-dist/`.
 
 > [!IMPORTANT]
 > Réexécuter `pnpm install` écrase le patch du template NSIS d'electron-builder. Le dépôt configure un hook `postinstall` qui le réapplique automatiquement ; en cas d'anomalie de l'installateur, vérifiez d'abord que le patch est bien appliqué.
@@ -193,22 +198,31 @@ Cette commande enchaîne : compilation du moteur en mode release → build du fr
 
 | Catégorie | Exigence |
 |------|------|
-| Système d'exploitation | Windows 10 ou supérieur (plateforme publiée actuellement) |
-| Runtime | PostgreSQL 15+ (requis uniquement pour « connexion à une base existante » ; installation automatique en mode portable) |
-| Développement | Node.js 20+, pnpm 10+, Rust stable + target MSVC |
+| Système d'exploitation | Windows 10+, macOS (x64 / arm64), Linux (x64) |
+| Runtime | PostgreSQL 15+ et pgvector intégrés à l'artefact ; rien à installer soi-même |
+| Développement | Node.js 22+, pnpm 10+, Rust stable |
 
 ## Configuration
 
-La configuration d'exécution et les identifiants sont stockés dans `C:\Users\<utilisateur>\.xuanyu\xuanyu.json`.
+La configuration, les données, le cache et les journaux suivent les répertoires standard de chaque plateforme :
 
-L'assistant de configuration est accessible par deux entrées : le **menu « Fichier »** de la barre de titre, ou le **bouton « Assistant de configuration »** de la page de paramètres système — vous pouvez y revenir à tout moment après la configuration initiale. Lors de l'écriture de la configuration, la chaîne de connexion existante est **fusionnée et non écrasée**, afin d'éviter toute perte de connexion à la base lors d'une reconfiguration. La logique de validation de la configuration figure dans [config_schema.rs](../crates/xuanyu-core/src/config_schema.rs).
+| Catégorie | Windows | macOS | Linux |
+|------|---------|-------|-------|
+| Configuration | `%APPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_CONFIG_HOME/xuanyu/` (par défaut `~/.config/xuanyu/`) |
+| Données | `%LOCALAPPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_DATA_HOME/xuanyu/` (par défaut `~/.local/share/xuanyu/`) |
+| Cache | `%LOCALAPPDATA%\XuanYu\Cache\` | `~/Library/Caches/XuanYu/` | `$XDG_CACHE_HOME/xuanyu/` (par défaut `~/.cache/xuanyu/`) |
+| Journaux | `%LOCALAPPDATA%\XuanYu\logs\` | `~/Library/Logs/XuanYu/` | `$XDG_STATE_HOME/xuanyu/logs/` (par défaut `~/.local/state/xuanyu/logs/`) |
+
+L'ancien ancrage `~/.xuanyu` est abandonné.
+
+L'assistant de configuration est accessible par deux entrées : le **menu « Fichier »** de la barre de titre, ou le **bouton « Assistant de configuration »** de la page de paramètres système — vous pouvez y revenir à tout moment après la configuration initiale. La connexion à la base utilise des paramètres fixes intégrés à l'application et n'expose donc plus de chaîne de connexion, d'hôte, de port ni d'identifiants. La logique de validation de la configuration figure dans [config_schema.rs](../crates/xuanyu-core/src/config_schema.rs).
 
 ## Modèle de sécurité
 
 - **Liste noire de commandes** — Intercepte les commandes dangereuses telles que `rm -rf /`, `sudo rm`, `chmod 777`, `eval` ([command_validator.rs](../crates/xuanyu-governance/src/command_validator.rs)).
 - **Gradation git** — Les commandes destructrices (`rebase` / `reset` / `clean` / `filter-*`, etc.) sont systématiquement refusées ([git_command_policy.rs](../crates/xuanyu-governance/src/git_command_policy.rs)).
 - **Validation des chemins** — Les opérations sur fichiers sont restreintes à la portée isolée de la session ([path_validator.rs](../crates/xuanyu-governance/src/path_validator.rs)).
-- **Bac à sable OS** — Encapsulation des commandes via `sandbox-exec` sur macOS et `bwrap` sur Linux ([os_sandbox.rs](../crates/xuanyu-tools/src/os_sandbox.rs)).
+- **Bac à sable OS** — Encapsulation des commandes via `sandbox-exec` sur macOS et `bwrap` sur Linux ; Windows ne dispose pas d'encapsuleur de processus équivalent, cet interrupteur ne s'y applique donc pas ([os_sandbox.rs](../crates/xuanyu-tools/src/os_sandbox.rs)).
 - **Approbation humaine** — Un appel d'outil à risque déclenche `PermissionRequested` ; après validation dans une boîte de dialogue, le flux revient via `PermissionAnswered`, avec traçabilité complète ([turn_ledger.rs](../crates/xuanyu-governance/src/turn_ledger.rs)).
 - **Sécurité du rollback** — La restauration de l'espace de travail s'effectue par restauration différentielle d'instantanés de contenu et **n'utilise jamais** de commandes destructrices telles que `git reset --hard` ; les fichiers modifiés manuellement par l'utilisateur sont exclus de la restauration et listés comme conflits.
 
@@ -216,7 +230,6 @@ Pour signaler un problème de sécurité, voir [SECURITY.md](../.github/SECURITY
 
 ## Feuille de route
 
-- [ ] Prise en charge multiplateforme (macOS / Linux)
 - [ ] Sessions en temps réel et abonnement piloté par événements
 - [ ] Distribution en ligne et mise à jour automatique du marketplace d'Agents / skills
 - [ ] Modèles de politiques de revue et de permissions plus riches

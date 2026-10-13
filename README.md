@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/platform-Windows%2010%2B-blue"><img src="https://img.shields.io/badge/platform-Windows%2010%2B-blue" alt="Platform"/></a>
+  <a href="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform"/></a>
   <a href="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9"><img src="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9" alt="Version"/></a>
   <a href="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6"><img src="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6" alt="Tech Stack"/></a>
   <a href="https://img.shields.io/badge/engine-15%20crates-16a34a"><img src="https://img.shields.io/badge/engine-15%20crates-16a34a" alt="Cargo Workspace"/></a>
@@ -27,10 +27,10 @@
 
 ---
 
-**玄语（XuanYu Agent）** 是一款**本地优先**的桌面 AI 智能体工作台。核心推理、工具执行与安全治理运行在独立的原生 Rust 引擎进程中，Electron 只承担界面与设备交互。会话、长期记忆与运行记录全部落在**你自己的 PostgreSQL**（内置便携库或现有库）里——离线可用、数据不出本机，同时可接入任意主流模型与第三方能力。
+**玄语（XuanYu Agent）** 是一款**本地优先**的桌面 AI 智能体工作台，原生支持 Windows、macOS 与 Linux。核心推理、工具执行与安全治理运行在独立的原生 Rust 引擎进程中，Electron 只承担界面与设备交互。会话、长期记忆与运行记录全部落在**随产物内置的 PostgreSQL**（含 pgvector）里——离线可用、数据不出本机，同时可接入任意主流模型与第三方能力。
 
 > [!NOTE]
-> 当前为 `0.1.0-preview` 预览版，发布平台为 **Windows 10+**。macOS / Linux 在[路线图](#路线图)中。
+> 当前为 `0.1.0-preview` 预览版，三端原生支持：**Windows 10+ / macOS（x64、arm64）/ Linux（x64）**。
 
 ## 目录
 
@@ -76,7 +76,7 @@ PostgreSQL + pgvector
 
 - **进程解耦** — 引擎是独立进程，通过 stdin/stdout 上的 JSON-RPC 与桌面壳双向通信（见 [engine_server.rs](crates/xuanyu-cli/src/bin/engine_server.rs)）。它不依赖界面，可单独运行、单独测试。
 - **事件驱动** — 引擎内所有异步变化（Turn 增量、工具进度、权限请求、记忆更新等）统一走 `eventbus`，序列化为 `AppEvent` 主动推送给 UI。UI 不轮询，天然支持多端订阅。
-- **存储单一事实源** — 会话、消息、记忆、运行记录、事件日志全部落 PostgreSQL，便携内置库与现有库使用同一套 schema。
+- **存储单一事实源** — 会话、消息、记忆、运行记录、事件日志全部落内置的 PostgreSQL，使用同一套 schema。
 
 ## 工作区结构
 
@@ -103,7 +103,7 @@ scripts/              IPC 代码生成、打包与冒烟脚本
 | `xuanyu-eventbus` | 事件总线：spine / router / transformer / backpressure |
 | `xuanyu-storage` | 存储与控制面：连接池 / 会话表 / 嵌入式 PostgreSQL |
 | `xuanyu-protocol` | 协议契约：Envelope / AppEvent / AppError / DTO |
-| `xuanyu-cli` | CLI 与 engine-server（含 `db-external` 辅助命令） |
+| `xuanyu-cli` | CLI 与 engine-server |
 | `xuanyu-desktop-host` | 桌面宿主桥：暴露可自动转写的 IPC 命令 |
 | `xuanyu-agent-bridge` | Agent 桥接：子 Agent 工作区绑定 |
 | `xuanyu-agents` | 子 Agent 运行时：watchdog / assess_merge |
@@ -152,18 +152,23 @@ scripts/              IPC 代码生成、打包与冒烟脚本
 
 ### 直接使用（推荐）
 
-前往 [Releases](https://github.com/ruo-mu/XuanYu/releases) 下载最新的 `XuanYu Agent Setup <版本>.exe`，双击安装。首次启动会进入配置向导，选择模型即可开始使用。
+前往 [Releases](https://github.com/ruo-mu/XuanYu/releases) 下载对应平台的产物，装完即用。首次启动会进入配置向导，选择模型即可开始使用。
 
-安装器支持两种数据库方式：
+| 平台 | 安装版 | 免安装形态 |
+|------|--------|------------|
+| Windows | `nsis` | `zip` |
+| macOS | `dmg` | `zip` |
+| Linux | `deb` | `AppImage`、`tar.gz` |
 
-| 方式 | 说明 |
-|------|------|
-| **内置便携式 PostgreSQL** | 自动下载并初始化（含 pgvector 扩展），**开箱即用**，无需任何额外配置 |
-| **连接现有数据库** | 填写连接串并测试连通性（内置 8 秒超时），复用你已有的 PostgreSQL 15+ 实例 |
+产物统一按 `XuanYu-Agent-<版本>-<os>[-<arch>].<ext>` 命名，例如 `XuanYu-Agent-0.1.0-preview-windows-setup.exe`、`XuanYu-Agent-0.1.0-preview-mac-arm64.dmg`、`XuanYu-Agent-0.1.0-preview-linux.AppImage`；macOS 因双架构带 `arch`，其余平台可省略。免安装形态与安装版使用相同的平台标准目录，数据不写安装目录。
+
+PostgreSQL + pgvector 随产物分发：构建期拉取，安装期与运行期零下载零解压。连接参数由应用固定，无需配置连接串、主机、端口或账号密码，首次启动也不需要联网。
+
+安装包本轮不做代码签名与公证：macOS 首次打开会被 Gatekeeper 拦截（可右键「打开」放行），Windows 会出现 SmartScreen「未知发布者」提示。
 
 ### 从源码开发
 
-前置：Rust stable（`x86_64-pc-windows-msvc`）、Node.js 20+、pnpm。
+前置：Rust stable、Node.js 22+、pnpm。
 
 ```bash
 pnpm install
@@ -184,7 +189,7 @@ pnpm gen:desktop-ipc   # 引擎能力变更后重新生成 IPC 契约
 pnpm dist
 ```
 
-该命令依次完成：以 release 模式编译引擎 → 构建前端 → 打包 NSIS 安装包。产物位于 `apps/desktop/release-dist/`。
+该命令依次完成：以 release 模式编译引擎 → 构建前端 → 打包当前平台的分发产物（Windows `nsis` / `zip`，macOS `dmg` / `zip`，Linux `AppImage` / `deb` / `tar.gz`）。产物位于 `apps/desktop/release-dist/`。
 
 > [!IMPORTANT]
 > 重新执行 `pnpm install` 后会覆盖 electron-builder 的 NSIS 模板补丁。仓库已配置 `postinstall` 钩子自动重新应用，若安装器异常请先确认补丁是否生效。
@@ -193,22 +198,31 @@ pnpm dist
 
 | 类别 | 要求 |
 |------|------|
-| 操作系统 | Windows 10 及以上（当前发布平台） |
-| 运行时 | PostgreSQL 15+（仅「连接现有库」时需要；便携模式自动安装） |
-| 开发 | Node.js 20+、pnpm 10+、Rust stable + MSVC target |
+| 操作系统 | Windows 10+ / macOS（x64、arm64）/ Linux（x64） |
+| 运行时 | 随产物内置 PostgreSQL 15+ 与 pgvector，无需自行安装 |
+| 开发 | Node.js 22+、pnpm 10+、Rust stable |
 
 ## 配置说明
 
-运行配置与凭据存放于 `C:\Users\<用户名>\.xuanyu\xuanyu.json`。
+配置、数据、缓存与日志按各平台标准目录落位：
 
-配置向导可通过两个入口进入：标题栏 **「文件」菜单**，或系统设置页的 **「配置向导」按钮**——首次配置之后仍可随时重进。写回配置时**合并而非覆盖**既有连接串，避免二次配置丢失数据库连接。配置校验逻辑见 [config_schema.rs](crates/xuanyu-core/src/config_schema.rs)。
+| 类别 | Windows | macOS | Linux |
+|------|---------|-------|-------|
+| 配置 | `%APPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_CONFIG_HOME/xuanyu/`（默认 `~/.config/xuanyu/`） |
+| 数据 | `%LOCALAPPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_DATA_HOME/xuanyu/`（默认 `~/.local/share/xuanyu/`） |
+| 缓存 | `%LOCALAPPDATA%\XuanYu\Cache\` | `~/Library/Caches/XuanYu/` | `$XDG_CACHE_HOME/xuanyu/`（默认 `~/.cache/xuanyu/`） |
+| 日志 | `%LOCALAPPDATA%\XuanYu\logs\` | `~/Library/Logs/XuanYu/` | `$XDG_STATE_HOME/xuanyu/logs/`（默认 `~/.local/state/xuanyu/logs/`） |
+
+`~/.xuanyu` 旧锚点已废弃。
+
+配置向导可通过两个入口进入：标题栏 **「文件」菜单**，或系统设置页的 **「配置向导」按钮**——首次配置之后仍可随时重进。数据库连接由应用内置固定参数，连接串、主机、端口、账号密码等配置项已全部移除。配置校验逻辑见 [config_schema.rs](crates/xuanyu-core/src/config_schema.rs)。
 
 ## 安全模型
 
 - **命令黑名单** — 拦截 `rm -rf /`、`sudo rm`、`chmod 777`、`eval` 等危险命令（[command_validator.rs](crates/xuanyu-governance/src/command_validator.rs)）。
 - **git 分级** — 破坏性指令（`rebase` / `reset` / `clean` / `filter-*` 等）一律拒绝执行（[git_command_policy.rs](crates/xuanyu-governance/src/git_command_policy.rs)）。
 - **路径校验** — 文件操作限制在会话隔离作用域内（[path_validator.rs](crates/xuanyu-governance/src/path_validator.rs)）。
-- **OS 沙箱** — macOS `sandbox-exec`、Linux `bwrap` 包裹命令（[os_sandbox.rs](crates/xuanyu-tools/src/os_sandbox.rs)）。
+- **OS 沙箱** — macOS 用 `sandbox-exec`、Linux 用 `bwrap` 包裹命令；Windows 没有等价的进程包装器，该开关在 Windows 上不适用（[os_sandbox.rs](crates/xuanyu-tools/src/os_sandbox.rs)）。
 - **人工审批** — 高危工具调用触发 `PermissionRequested`，UI 弹窗审批后经 `PermissionAnswered` 回流，全程记账（[turn_ledger.rs](crates/xuanyu-governance/src/turn_ledger.rs)）。
 - **回滚安全** — 工作区回退采用内容快照差量还原，**绝不使用** `git reset --hard` 等破坏性命令；被用户手动改过的文件会跳过还原并列入冲突清单。
 
@@ -216,7 +230,6 @@ pnpm dist
 
 ## 路线图
 
-- [ ] 多平台支持（macOS / Linux）
 - [ ] 实时会话与事件驱动订阅
 - [ ] Agent / 技能市场在线分发与自动更新
 - [ ] 更丰富的审阅与权限策略模板

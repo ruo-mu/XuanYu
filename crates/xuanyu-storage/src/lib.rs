@@ -5,32 +5,29 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-mod control_plane;
-mod control_plane_handle;
 mod embedded_postgres;
-mod event_journal;
 mod paths;
 mod postgres_control_plane;
 mod postgres_conversation;
 
-pub use control_plane::{ControlPlaneStore, UpsertTaskInput};
-pub use control_plane_handle::{ControlPlaneBackend, ControlPlaneHandle};
 pub use embedded_postgres::{
-    embedded_postgres_status, install_embedded_postgres, start_embedded_postgres,
-    stop_embedded_postgres, EmbeddedPostgresInstallOptions, EmbeddedPostgresPaths,
-    EmbeddedPostgresProgress, EmbeddedPostgresStatus,
+    embedded_postgres_status, prepare_embedded_postgres, start_embedded_postgres,
+    stop_embedded_postgres, EmbeddedPostgresPaths, EmbeddedPostgresPhase, EmbeddedPostgresProgress,
+    EmbeddedPostgresStatus,
 };
-pub use event_journal::{EventJournalStore, JournalEventRecord};
 pub use paths::{
-    default_app_data_dir, default_sqlite_database_path, embedded_postgres_root,
-    global_app_dir, project_data_key, project_data_root, resolve_app_dir_from_selection,
-    resolve_global_config_file, runtime_data_root, store_path, strip_utf8_bom, APP_DIR_NAME,
+    config_dir, embedded_postgres_data_dir, logs_dir, platform_data_dir, project_data_key,
+    project_data_root, resolve_global_config_file, runtime_data_root, strip_utf8_bom, APP_DIR_NAME,
     PROJECT_CONFIG_FILE_NAME,
 };
 pub use postgres_control_plane::{
-    postgres_control_plane_from_config, PostgresControlPlaneConfig, PostgresControlPlaneStore,
+    JournalEventRecord, PostgresControlPlaneConfig, PostgresControlPlaneStore, PostgresEventJournal,
+    UpsertTaskInput,
 };
 pub use postgres_conversation::{PostgresConversationStore, PostgresConversationStoreConfig};
+
+/// 控制面统一走 PostgreSQL。
+pub type ControlPlaneHandle = Arc<PostgresControlPlaneStore>;
 
 /// Conversation persistence — PostgreSQL only.
 pub type ConversationStore = PostgresConversationStore;
@@ -39,23 +36,19 @@ pub type ConversationStore = PostgresConversationStore;
 #[serde(rename_all = "camelCase")]
 pub struct StorageConfig {
     pub data_dir: PathBuf,
-    pub database_path: PathBuf,
     pub project_name: String,
 }
 
 impl StorageConfig {
     pub fn for_data_dir(data_dir: PathBuf) -> Self {
         Self {
-            database_path: default_sqlite_database_path(&data_dir),
             data_dir,
             project_name: "default".to_string(),
         }
     }
 
-    /// 配置文件固定在 `{用户主目录}/.xuanyu/xuanyu.json`，不随 `data_dir` 变化。
-    /// 便携式安装的 `data_dir` 指向 `<安装目录>\data`（内置 PostgreSQL、插件、skill、
-    /// mcp、memory 等数据都在那里），但配置与密钥仍留在用户主目录，这样升级/卸载重装
-    /// 不会丢配置，也与安装器 `db-external` 的写入位置保持一致。
+    /// 配置文件固定在平台配置目录（`%APPDATA%\XuanYu` / `~/Library/Application Support/XuanYu`
+    /// / `$XDG_CONFIG_HOME/xuanyu`），不随 `data_dir` 变化：升级或重装不会丢配置。
     pub fn config_path(&self) -> PathBuf {
         resolve_global_config_file()
     }
@@ -70,38 +63,8 @@ pub struct StorageService {
     config: StorageConfig,
     initialized: RwLock<bool>,
     conversation_store: Arc<PostgresConversationStore>,
-    event_journal: Arc<EventJournalStore>,
-    control_plane: RwLock<ControlPlaneHandle>,
-}
-
-/// 探测外部 PostgreSQL 连接（连接 + `SELECT version()`），8 秒超时。
-/// 无需构造 `StorageService`（不触碰任何磁盘状态），用于安装器/CLI 的纯连接验证。
-pub async fn probe_external_postgres_connection(
-    connection_string: &str,
-) -> anyhow::Result<String> {
-    use std::str::FromStr;
-    let config = tokio_postgres::Config::from_str(connection_string.trim())
-        .map_err(|err| anyhow::anyhow!("invalid connection string: {err}"))?;
-    let (client, connection) =
-        tokio::time::timeout(
-            std::time::Duration::from_secs(8),
-            config.connect(tokio_postgres::NoTls),
-        )
-        .await
-        .map_err(|_| anyhow::anyhow!("连接超时（8 秒）/connection timed out (8s)"))?
-        .map_err(|err| anyhow::anyhow!("连接失败/connection failed: {err}"))?;
-    let _keepalive = tokio::spawn(async move {
-        let _ = connection.await;
-    });
-    let row = tokio::time::timeout(
-        std::time::Duration::from_secs(8),
-        client.query_one("SELECT version()", &[]),
-    )
-    .await
-    .map_err(|_| anyhow::anyhow!("查询超时（8 秒）/query timed out (8s)"))?
-    .map_err(|err| anyhow::anyhow!("查询失败/query failed: {err}"))?;
-    row.try_get::<_, String>(0)
-        .map_err(|err| anyhow::anyhow!("读取版本失败/read version failed: {err}"))
+    control_plane: RwLock<Option<ControlPlaneHandle>>,
+    journal: Arc<PostgresEventJournal>,
 }
 
 impl StorageService {
@@ -109,64 +72,51 @@ impl StorageService {
         let conversation_store = Arc::new(PostgresConversationStore::new(
             config.project_name.clone(),
         ));
-        let event_journal = Arc::new(
-            EventJournalStore::open(&config.database_path)
-                .expect("event journal store should open"),
-        );
-        let app_config = load_app_config_at(&config.config_path());
-        let control_plane = RwLock::new(resolve_control_plane(
-            &config.database_path,
-            app_config.as_ref(),
-        ));
         Self {
             config,
             initialized: RwLock::new(false),
             conversation_store,
-            event_journal,
-            control_plane,
+            control_plane: RwLock::new(None),
+            journal: Arc::new(PostgresEventJournal::new()),
         }
     }
 
     pub async fn initialize(&self) -> anyhow::Result<()> {
-        tokio::fs::create_dir_all(global_app_dir()).await?;
-        tokio::fs::create_dir_all(self.config.data_dir.join("store").join("sqlite")).await?;
-        tokio::fs::create_dir_all(self.config.data_dir.join("logs")).await?;
+        tokio::fs::create_dir_all(config_dir()).await?;
+        tokio::fs::create_dir_all(logs_dir()).await?;
         tokio::fs::create_dir_all(self.config.data_dir.join("events")).await?;
         tokio::fs::create_dir_all(self.config.data_dir.join("blobs")).await?;
         tokio::fs::create_dir_all(self.config.data_dir.join("models")).await?;
-        if let Ok(Some(config)) = self.load_app_config().await {
-            *self.control_plane.write().await =
-                resolve_control_plane(&self.config.database_path, Some(&config));
-        }
         let mut initialized = self.initialized.write().await;
         *initialized = true;
         Ok(())
     }
 
-    /** Attach PostgreSQL conversation store (required before session IO). */
+    /** Attach the built-in PostgreSQL store (required before session IO). */
     pub async fn configure_conversation_store(
         &self,
         connection_string: impl Into<String>,
         schema: impl Into<String>,
         table_prefix: impl Into<String>,
     ) -> anyhow::Result<()> {
+        let connection_string = connection_string.into();
+        let schema = schema.into();
         self.conversation_store
             .configure(PostgresConversationStoreConfig {
-                connection_string: connection_string.into(),
+                connection_string: connection_string.clone(),
                 project_name: self.config.project_name.clone(),
-                schema: schema.into(),
+                schema: schema.clone(),
                 table_prefix: table_prefix.into(),
             })
-            .await
-    }
-
-    /// 测试外部 PostgreSQL 连接（连接 + `SELECT version()`），8 秒超时。
-    /// 只做连接验证，不写任何配置。返回数据库版本字符串。
-    pub async fn test_external_postgres_connection(
-        &self,
-        connection_string: &str,
-    ) -> anyhow::Result<String> {
-        probe_external_postgres_connection(connection_string).await
+            .await?;
+        let store = Arc::new(PostgresControlPlaneStore::open(PostgresControlPlaneConfig {
+            connection_string,
+            schema,
+            psql_path: self.psql_path(),
+        })?);
+        self.journal.attach(store.clone())?;
+        *self.control_plane.write().await = Some(store);
+        Ok(())
     }
 
     pub async fn is_initialized(&self) -> bool {
@@ -181,28 +131,19 @@ impl StorageService {
         self.conversation_store.clone()
     }
 
-    pub fn event_journal(&self) -> Arc<EventJournalStore> {
-        self.event_journal.clone()
+    pub fn event_journal(&self) -> Arc<PostgresEventJournal> {
+        self.journal.clone()
     }
 
-    pub fn control_plane(&self) -> ControlPlaneHandle {
+    pub fn control_plane(&self) -> Option<ControlPlaneHandle> {
         self.control_plane
             .try_read()
-            .map(|guard| guard.clone())
-            .unwrap_or_else(|_| {
-                resolve_control_plane(&self.config.database_path, None)
-            })
-    }
-
-    pub async fn control_plane_async(&self) -> ControlPlaneHandle {
-        self.control_plane.read().await.clone()
+            .ok()
+            .and_then(|guard| guard.clone())
     }
 
     pub fn control_plane_backend(&self) -> &'static str {
-        self.control_plane
-            .try_read()
-            .map(|guard| guard.backend_name())
-            .unwrap_or("sqlite")
+        "postgres"
     }
 
     pub fn app_config_path(&self) -> PathBuf {
@@ -215,6 +156,11 @@ impl StorageService {
             .join("memory")
             .join(&self.config.project_name)
             .join("memories.json")
+    }
+
+    /// 内置实例自带的 psql，控制面用它执行 SQL。
+    fn psql_path(&self) -> PathBuf {
+        EmbeddedPostgresPaths::resolve(&self.config.data_dir).psql_path()
     }
 
     pub async fn load_app_config(&self) -> anyhow::Result<Option<serde_json::Value>> {
@@ -394,26 +340,6 @@ pub struct ConversationSessionPatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<BTreeMap<String, serde_json::Value>>,
 }
-fn load_app_config_at(path: &std::path::Path) -> Option<serde_json::Value> {
-    let text = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(strip_utf8_bom(&text)).ok()
-}
-
-fn resolve_control_plane(
-    database_path: &std::path::Path,
-    config: Option<&serde_json::Value>,
-) -> ControlPlaneHandle {
-    if let Some(cfg) = config {
-        if let Some(pg_cfg) = postgres_control_plane_from_config(cfg) {
-            if let Ok(store) = PostgresControlPlaneStore::open(pg_cfg) {
-                return Arc::new(ControlPlaneBackend::Postgres(Arc::new(store)));
-            }
-        }
-    }
-    Arc::new(ControlPlaneBackend::Sqlite(Arc::new(
-        ControlPlaneStore::open(database_path).expect("control plane store should open"),
-    )))
-}
 
 fn sanitize_segment(value: &str) -> String {
     let sanitized = value
@@ -433,4 +359,3 @@ fn sanitize_segment(value: &str) -> String {
         sanitized.chars().take(80).collect()
     }
 }
-

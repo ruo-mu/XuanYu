@@ -940,7 +940,7 @@ export interface GitStatusSnapshot {
 }
 
 export interface ConversationStoreHealth {
-  backend: 'postgres' | 'sqlite' | 'file' | string;
+  backend: 'postgres';
   ok: boolean;
   location: string;
   pgvector?: boolean;
@@ -948,8 +948,7 @@ export interface ConversationStoreHealth {
 }
 
 export interface MemoryStoreHealth {
-  backend: string;
-  postgresConfigured: boolean;
+  backend: 'postgres';
   ok?: boolean;
   location?: string;
   pgvector?: boolean;

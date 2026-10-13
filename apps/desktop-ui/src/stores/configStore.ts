@@ -74,7 +74,7 @@ export interface AppConfig {
     extra?: Record<string, string>;
   }>;
   memory?: {
-    backend: 'sqlite' | 'local' | 'postgres';
+    backend: 'postgres';
     maxEntries: number;
     cleanupImportanceThreshold: number;
     embedding?: {
@@ -87,19 +87,9 @@ export interface AppConfig {
       batchSize?: number;
     };
     postgres?: {
-      connectionString?: string;
       schema?: string;
       tablePrefix?: string;
       vectorDimensions?: number;
-      embedded?: {
-        enabled: boolean;
-        installDir: string;
-        dataDir: string;
-        binDir: string;
-        port: number;
-        database: string;
-        username: string;
-      };
     };
   };
   sandbox?: {

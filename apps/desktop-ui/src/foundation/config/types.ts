@@ -193,7 +193,7 @@ export const DESKTOP_GATEWAY_DEFAULT: GatewayConfig = {
 };
 
 /**
- * 工作区偏好（写入 `~/.xuanyu/xuanyu.json`）。
+ * 工作区偏好（写入全局配置文件 `xuanyu.json`）。
  * 网关启动时恢复 lastDir 为 process.cwd()，避免每次重启丢回安装目录。
  */
 export interface WorkspaceSettings {
@@ -323,20 +323,9 @@ export interface MemorySettings {
     batchSize?: number;
   };
   postgres?: {
-    connectionString?: string;
     schema?: string;
     tablePrefix?: string;
     vectorDimensions?: number;
-    ssl?: boolean | { rejectUnauthorized?: boolean };
-    embedded?: {
-      enabled: boolean;
-      installDir: string;
-      dataDir: string;
-      binDir: string;
-      port: number;
-      database: string;
-      username: string;
-    };
   };
 }
 
@@ -344,8 +333,6 @@ export interface MemorySettings {
 export interface AppConfig {
   /** Web 界面语言。 */
   locale?: 'zh-CN' | 'en';
-  /** 全局应用数据根目录；init 时写入。配置文件固定为 `~/.xuanyu/xuanyu.json`。 */
-  appDataDir?: string;
   /** 主 LLM 供应商配置。 */
   provider: ProviderSettings;
   /** 工具权限配置。 */

@@ -124,10 +124,6 @@ export default function ReviewStep({ draft, meta, locale }: ReviewStepProps) {
               <em>{tr('init.review.configFile')}</em>
               <code>{displayFsPath(meta.configPath)}</code>
             </span>
-            <span>
-              <em>{tr('init.review.dataDir')}</em>
-              <code>{displayFsPath(meta.appDataDir)}</code>
-            </span>
           </div>
         </div>
       </div>

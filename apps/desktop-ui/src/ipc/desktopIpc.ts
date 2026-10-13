@@ -266,44 +266,18 @@ export interface InitModelsFetchResult {
   error?: string | null;
 }
 
-export interface InitPostgresArchiveInfo {
-  path: string;
-  exists: boolean;
-  usable: boolean;
-  sizeBytes?: number;
-  error?: string;
-}
-
 export interface InitPostgresStatusResult {
-  phase: 'ready' | 'needs_install' | 'needs_start' | 'needs_pgvector' | 'not_running';
+  phase: 'ready' | 'needs_init' | 'needs_start' | 'needs_pgvector' | 'missing_program';
+  program: boolean;
   installed: boolean;
-  pgvectorFiles: boolean;
   running: boolean;
   pgvector: boolean;
   port: number;
   database: string;
   username: string;
-  installDir: string;
+  programDir: string;
   dataDir: string;
-  cacheDir: string;
-  archives: {
-    postgres?: InitPostgresArchiveInfo;
-    pgvector?: InitPostgresArchiveInfo;
-  };
-  connectionString?: string;
-  embedded?: Record<string, unknown>;
-  error?: string;
-}
-
-export interface InitPostgresTestConnectionResult {
-  ok: boolean;
-  connected: boolean;
-  verified?: boolean;
-  latencyMs?: number;
-  version?: string;
-  database?: string;
-  pgvector: boolean;
-  pgvectorError?: string;
+  connectionString: string;
   error?: string;
 }
 
@@ -941,61 +915,24 @@ export async function initModelsFetch(input: InitModelsFetchInput): Promise<Init
   );
 }
 
-export async function initPostgresStatus(connectionString?: string): Promise<InitPostgresStatusResult> {
-  return DesktopIpcGen.initPostgresStatus(connectionString);
-}
-
-export async function initPostgresTestConnection(
-  connectionString: string,
-): Promise<InitPostgresTestConnectionResult> {
-  return DesktopIpcGen.initPostgresTestConnection(connectionString);
+export async function initPostgresStatus(): Promise<InitPostgresStatusResult> {
+  return DesktopIpcGen.initPostgresStatus();
 }
 
 export async function initPostgresStart(): Promise<InitPostgresStartResult> {
   return DesktopIpcGen.initPostgresStart();
 }
 
-export async function initPostgresInstall(input?: {
-  skipDownload?: boolean;
-  installPgvector?: boolean;
-}): Promise<InitPostgresStartResult> {
-  return invoke<InitPostgresStartResult>('init_postgres_install', {
-    skipDownload: input?.skipDownload ?? false,
-    installPgvector: input?.installPgvector ?? true,
-  });
-}
-
-/** 首启存储初始化：查询是否已配置外部库 / 嵌入式 PostgreSQL 是否就绪。 */
+/** 首启存储初始化：内置 PostgreSQL 数据目录是否已初始化及其当前阶段。 */
 export interface StorageSetupStatus {
-  externalConfigured: boolean;
   /** 内置 PostgreSQL 是否已安装（已初始化数据目录）。安装器便携式模式会预先装好。 */
   embeddedInstalled?: boolean;
   embeddedPhase: string;
 }
 
-/** 首启存储初始化：测试外部数据库连接。 */
-export interface StorageConnectionResult {
-  ok: boolean;
-  message: string;
-}
-
 /** 首启存储初始化：查询当前存储初始化状态。 */
 export async function storageGetSetup(): Promise<StorageSetupStatus> {
   return invoke<StorageSetupStatus>('storage_get_setup', {});
-}
-
-/** 首启存储初始化：测试外部数据库连接串。 */
-export async function storageTestExternalConnection(
-  connectionString: string,
-): Promise<StorageConnectionResult> {
-  return invoke<StorageConnectionResult>('storage_test_external_connection', { connectionString });
-}
-
-/** 首启存储初始化：保存外部数据库连接串为数据源。 */
-export async function storageSaveExternal(
-  connectionString: string,
-): Promise<StorageConnectionResult> {
-  return invoke<StorageConnectionResult>('storage_save_external', { connectionString });
 }
 
 export async function initChannelPluginsList(): Promise<{ plugins: InitChannelPlugin[] }> {
@@ -1379,7 +1316,7 @@ export function toUiSession(session: RustSessionInfo): SessionInfo {
     provider: 'desktop-rust',
     model: 'xuanyu-core',
     status: isProcessing ? 'active' : 'idle',
-    storageBackend: session.storageBackend || session.storage_backend || 'sqlite',
+    storageBackend: session.storageBackend || session.storage_backend || 'postgres',
     titleStatus: session.titleStatus ?? session.title_status,
     titleGeneratedBy: session.titleGeneratedBy ?? session.title_generated_by,
     titleGenerationError: session.titleGenerationError ?? session.title_generation_error,

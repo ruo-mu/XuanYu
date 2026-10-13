@@ -1,7 +1,5 @@
 import { app, BrowserWindow, nativeTheme, shell } from 'electron';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { readFileSync } from 'node:fs';
 import { RustEngineClient } from './engine/EngineClient';
 import { AppServer } from './app/AppServer';
 import { registerIpc } from './ipc/registerIpc';
@@ -18,35 +16,6 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
   console.error('[app] uncaught exception', err);
 });
-
-/**
- * 读取安装器写入的启动标记（~\.xuanyu\launch.conf）。
- *
- * 便携式安装时安装器会写入 "dataDir=<安装目录>\data"，此时引擎的所有数据
- * （内置 PostgreSQL、插件、skill、mcp、沙箱等）都位于安装目录下；未安装或
- * 使用现有数据库时返回 undefined，引擎回落到默认的 ~\.xuanyu。
- *
- * 注意：Unicode 版 NSIS 写出的文件是 UTF-16LE（可能带 BOM），这里同时容忍
- * UTF-8，避免其他工具改写后无法解析。
- */
-function resolveLaunchDataDir(): string | undefined {
-  const marker = join(homedir(), '.xuanyu', 'launch.conf');
-  let buffer: Buffer;
-  try {
-    buffer = readFileSync(marker);
-  } catch {
-    return undefined;
-  }
-  const isUtf16Le = buffer.includes(0x00);
-  let text = isUtf16Le ? buffer.toString('utf16le') : buffer.toString('utf8');
-  if (isUtf16Le && text.charCodeAt(0) === 0xfeff) text = text.slice(1); // strip BOM
-  for (const line of text.split(/\r?\n/)) {
-    const eq = line.indexOf('=');
-    if (eq <= 0) continue;
-    if (line.slice(0, eq).trim() === 'dataDir') return line.slice(eq + 1).trim();
-  }
-  return undefined;
-}
 
 /** Must stay in sync with --xy-chrome-bg / --xy-text in desktop-ui styles. */
 const DEFAULT_CHROME = {
@@ -179,7 +148,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
-    engine = new RustEngineClient({ dataDir: resolveLaunchDataDir() });
+    engine = new RustEngineClient();
     const server = new AppServer(engine);
     terminalManager = new TerminalManager(() => mainWindow);
 

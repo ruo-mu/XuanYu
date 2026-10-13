@@ -21,7 +21,7 @@ type TerminalSession = {
 
 function defaultShellKind(): TerminalShellKind {
   if (process.platform === 'win32') return 'powershell';
-  return 'bash';
+  return 'shell';
 }
 
 function resolveShell(kind?: TerminalShellKind): { file: string; args: string[]; shell: TerminalShellKind } {
@@ -35,25 +35,11 @@ function resolveShell(kind?: TerminalShellKind): { file: string; args: string[];
       }
       return { file: 'cmd.exe', args: [], shell: 'cmd' };
     }
-
-    const pwshCandidates = [
-      process.env.XUANYU_SHELL?.trim(),
-      'pwsh.exe',
-      'powershell.exe',
-    ].filter((value): value is string => Boolean(value));
-
-    for (const file of pwshCandidates) {
-      if (file.includes('\\') || file.includes('/')) {
-        if (existsSync(file)) return { file, args: [], shell: 'powershell' };
-        continue;
-      }
-      return { file, args: [], shell: 'powershell' };
-    }
     return { file: 'powershell.exe', args: [], shell: 'powershell' };
   }
 
-  const shell = process.env.XUANYU_SHELL || process.env.SHELL || '/bin/bash';
-  return { file: shell, args: [], shell: 'bash' };
+  const shell = process.env.SHELL?.trim() || '/bin/sh';
+  return { file: shell, args: [], shell: 'shell' };
 }
 
 function sanitizeCwd(cwd?: string | null): string {

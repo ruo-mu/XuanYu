@@ -46,12 +46,12 @@ declare global {
         cwd?: string;
         cols?: number;
         rows?: number;
-        shell?: 'powershell' | 'cmd' | 'bash';
+        shell?: 'powershell' | 'cmd' | 'shell';
       }): Promise<{
         id: string;
         title: string;
         cwd: string;
-        shell: 'powershell' | 'cmd' | 'bash';
+        shell: 'powershell' | 'cmd' | 'shell';
       }>;
       terminalAttach?(input: { id: string }): Promise<{ ok: boolean; buffered?: string }>;
       terminalWrite?(input: { id: string; data: string }): Promise<{ ok: boolean }>;

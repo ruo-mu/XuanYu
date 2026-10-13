@@ -362,20 +362,8 @@ async fn init_models_fetch(
         .await)
 }
 
-async fn init_postgres_status(
-    core: &AppCore,
-    connection_string: Option<String>,
-) -> Result<Value, String> {
-    Ok(core.init_postgres_status(connection_string).await)
-}
-
-async fn init_postgres_test_connection(
-    core: &AppCore,
-    connection_string: String,
-) -> Result<Value, String> {
-    Ok(core
-        .init_postgres_test_connection(connection_string)
-        .await)
+async fn init_postgres_status(core: &AppCore) -> Result<Value, String> {
+    Ok(core.init_postgres_status().await)
 }
 
 async fn init_postgres_start(core: &AppCore) -> Result<Value, String> {
@@ -386,20 +374,6 @@ async fn init_postgres_start(core: &AppCore) -> Result<Value, String> {
 
 async fn storage_get_setup(core: &AppCore) -> Result<Value, String> {
     Ok(core.storage_get_setup().await)
-}
-
-async fn storage_test_external_connection(
-    core: &AppCore,
-    connection_string: String,
-) -> Result<Value, String> {
-    Ok(core.storage_test_external_connection(connection_string).await)
-}
-
-async fn storage_save_external(
-    core: &AppCore,
-    connection_string: String,
-) -> Result<Value, String> {
-    Ok(core.storage_save_external(connection_string).await)
 }
 
 async fn init_channel_plugins_list(core: &AppCore) -> Result<Value, String> {

@@ -10,11 +10,6 @@ export interface EngineClient {
   onStatusChange(listener: (status: EngineStatus) => void): () => void;
 }
 
-export type RustEngineClientOptions = {
-  /** 便携式安装时由安装器写入：数据目录（数据库/插件/skill 等）位于安装目录\data。 */
-  dataDir?: string;
-};
-
 export class RustEngineClient implements EngineClient {
   private status: EngineStatus = { state: 'stopped' };
   private readonly rpc: EngineRpcClient;
@@ -31,8 +26,8 @@ export class RustEngineClient implements EngineClient {
   private static readonly CRASH_LIMIT = 3;
   private static readonly RESTART_DELAY_MS = 1_000;
 
-  constructor(private readonly options: RustEngineClientOptions = {}) {
-    this.rpc = new EngineRpcClient(this.options.dataDir ? { dataDir: this.options.dataDir } : {});
+  constructor() {
+    this.rpc = new EngineRpcClient();
     this.exitUnsub = this.rpc.onProcessExit((info) => {
       this.setStatus({
         state: 'error',
@@ -146,41 +141,5 @@ export class RustEngineClient implements EngineClient {
   private setStatus(next: EngineStatus): void {
     this.status = next;
     for (const listener of this.statusListeners) listener(next);
-  }
-}
-
-/** @deprecated 仅测试占位，生产使用 RustEngineClient */
-export class LocalEngineClient implements EngineClient {
-  private status: EngineStatus = { state: 'stopped' };
-  private readonly statusListeners = new Set<(status: EngineStatus) => void>();
-
-  getStatus(): EngineStatus {
-    return this.status;
-  }
-
-  getRpc(): EngineRpcClient {
-    throw new Error('LocalEngineClient has no RPC');
-  }
-
-  onStatusChange(listener: (status: EngineStatus) => void): () => void {
-    this.statusListeners.add(listener);
-    return () => this.statusListeners.delete(listener);
-  }
-
-  async start(): Promise<EngineStatus> {
-    this.status = { state: 'ready', version: 'local' };
-    for (const listener of this.statusListeners) listener(this.status);
-    return this.status;
-  }
-
-  async stop(): Promise<EngineStatus> {
-    this.status = { state: 'stopped' };
-    for (const listener of this.statusListeners) listener(this.status);
-    return this.status;
-  }
-
-  async restart(): Promise<EngineStatus> {
-    await this.stop();
-    return this.start();
   }
 }

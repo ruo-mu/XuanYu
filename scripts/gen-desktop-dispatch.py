@@ -12,11 +12,10 @@ OUT = ROOT / "crates/xuanyu-desktop-host/src/dispatch_gen.inc"
 SKIP_PARAM_SUBSTR = ("AppHandle", "Window", "Webview")
 # 不生成 dispatch 的函数：
 #  - create_app_core: crate 公开 API，非 IPC 命令
-#  - init_postgres_install / permission_respond / event_replay_filtered: 手工 dispatch
+#  - permission_respond / event_replay_filtered: 手工 dispatch
 #  - marketplace_search: 参数已打包为 MarketplaceSearchInput（跨 crate 类型），手工 dispatch
 SKIP_NAMES = {
     "create_app_core",
-    "init_postgres_install",
     "permission_respond",
     "event_replay_filtered",
     "marketplace_search",
@@ -70,25 +69,9 @@ header_pat = re.compile(
 helpers: list[str] = []
 arms: list[str] = []
 
-manual_helpers = '''
-async fn dispatch_init_postgres_install(core: &AppCore, params: Value) -> Result<Value, String> {
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Params { skip_download: Option<bool>, install_pgvector: Option<bool> }
-    let payload: Params = serde_json::from_value(params).map_err(|e| e.to_string())?;
-    let result = core.init_postgres_install(
-        serde_json::json!({
-            "skipDownload": payload.skip_download.unwrap_or(false),
-            "installPgvector": payload.install_pgvector.unwrap_or(true),
-        }),
-        None,
-    ).await;
-    serde_json::to_value(result).map_err(|e| e.to_string())
-}
-'''
+manual_helpers = ''
 
 manual_arms = '''
-        "init_postgres_install" => dispatch_init_postgres_install(&managed.0, params).await,
         "app_updater_install" => Err("Electron shell handles updates".to_string()),
         "app_updater_relaunch" => Err("Electron shell handles relaunch".to_string()),
         "launch_setup_app" => Err("Electron shell handles setup".to_string()),

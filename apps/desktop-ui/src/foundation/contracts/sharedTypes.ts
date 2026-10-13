@@ -695,16 +695,12 @@ export type MemoryPersistenceBackend = 'postgres';
 
 /** PostgreSQL 记忆后端配置。 */
 export interface PostgresMemoryConfig {
-  /** PostgreSQL connection string. */
-  connectionString?: string;
   /** Database schema for memory tables. */
   schema?: string;
   /** Prefix for created tables and indexes. */
   tablePrefix?: string;
   /** pgvector dimension count. Defaults to the local embedding size. */
   vectorDimensions?: number;
-  /** Whether to use TLS for the database connection. */
-  ssl?: boolean | { rejectUnauthorized?: boolean };
 }
 
 /** 嵌入模型、维度与批次。 */

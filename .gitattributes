@@ -1,0 +1,14 @@
+# Normalize line endings so files do not drift between checkout platforms.
+* text=auto
+
+# Shell / NSIS / Node ESM scripts are consumed verbatim by their tooling and
+# must stay LF: build/installer.nsh is patched by scripts/patch-nsis-templates.mjs,
+# and a CRLF template makes that patch silently drop out.
+*.sh text eol=lf
+*.nsh text eol=lf
+*.mjs text eol=lf
+*.ps1 text eol=crlf
+
+*.ico binary
+*.png binary
+*.icns binary

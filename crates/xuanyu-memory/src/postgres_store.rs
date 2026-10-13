@@ -407,9 +407,6 @@ fn vector_literal(values: &[f32]) -> String {
 
 pub fn postgres_memory_config_from_value(value: &Value) -> Option<PostgresMemoryConfig> {
     let memory = value.get("memory")?;
-    if memory.get("backend").and_then(Value::as_str) != Some("postgres") {
-        return None;
-    }
     let pg = memory.get("postgres")?;
     Some(PostgresMemoryConfig {
         connection_string: pg

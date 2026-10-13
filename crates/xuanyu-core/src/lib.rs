@@ -104,9 +104,9 @@ use xuanyu_session::{
     StartStepInput, StepRecord, UserFeedbackRecord,
 };
 use xuanyu_storage::{
-    embedded_postgres_status, install_embedded_postgres, project_data_root,
+    embedded_postgres_status, prepare_embedded_postgres, project_data_root,
     start_embedded_postgres, ConversationMessageRecord, ConversationSnapshotRecord,
-    EmbeddedPostgresInstallOptions, EmbeddedPostgresPaths, StorageConfig, StorageService,
+    EmbeddedPostgresPaths, StorageConfig, StorageService,
 };
 use xuanyu_tools::{
     format_deferred_tool_catalog_for_prompt, initial_active_tool_names,
@@ -305,7 +305,7 @@ impl AppCore {
         let turn_ledger = Arc::new(TurnLedgerStore::new(workspace_root.clone()));
         let agents = AgentRuntime::new(
             storage.config().data_dir.clone(),
-            Some(storage.control_plane()),
+            storage.control_plane(),
         );
         let tools = Arc::new(
             ToolRuntime::with_builtins(
@@ -413,45 +413,32 @@ impl AppCore {
                         .context("configure postgres memory backend")
                 };
                 if let Err(err) = attach.await {
-                    let embedded_target =
-                        postgres_connection_targets_embedded(&pg_conn, &self.embedded_postgres_paths());
-                    if embedded_target {
-                        // 内置实例未就绪（例如安装结束时按设计停掉了 PG）：引擎照常 ready，
-                        // 后台重启实例并重新挂载，避免整个桌面端因数据库没起来而瘫痪。
-                        self.observability
-                            .health(
-                                "storage",
-                                HealthStatus::Degraded,
-                                Some(format!("embedded PostgreSQL not reachable: {err:#}")),
-                            )
-                            .await;
-                        self.observability
-                            .health(
-                                "memory",
-                                HealthStatus::Degraded,
-                                Some(
-                                    "Postgres memory backend pending embedded PostgreSQL restart"
-                                        .to_string(),
-                                ),
-                            )
-                            .await;
-                        self.eventbus.publish(AppEvent::LogEntry {
-                            level: "warn".to_string(),
-                            message: format!(
-                                "内置数据库未就绪，正在后台重新启动（{err:#}），完成后会话与长期记忆自动恢复"
+                    // 内置实例未就绪（例如启动期恰逢实例尚未起来）：引擎照常 ready，
+                    // 后台重启实例并重新挂载，避免整个桌面端因数据库没起来而瘫痪。
+                    self.observability
+                        .health(
+                            "storage",
+                            HealthStatus::Degraded,
+                            Some(format!("embedded PostgreSQL not reachable: {err:#}")),
+                        )
+                        .await;
+                    self.observability
+                        .health(
+                            "memory",
+                            HealthStatus::Degraded,
+                            Some(
+                                "Postgres memory backend pending embedded PostgreSQL restart"
+                                    .to_string(),
                             ),
-                        });
-                        self.spawn_embedded_postgres_auto_setup();
-                    } else {
-                        self.observability
-                            .health(
-                                "memory",
-                                HealthStatus::Down,
-                                Some(format!("postgres memory backend failed: {err:#}")),
-                            )
-                            .await;
-                        anyhow::bail!("PostgreSQL/pgvector memory backend unavailable: {err:#}");
-                    }
+                        )
+                        .await;
+                    self.eventbus.publish(AppEvent::LogEntry {
+                        level: "warn".to_string(),
+                        message: format!(
+                            "内置数据库未就绪，正在后台重新启动（{err:#}），完成后会话与长期记忆自动恢复"
+                        ),
+                    });
+                    self.spawn_embedded_postgres_auto_setup();
                 } else {
                     self.observability
                         .log("info", "Postgres/pgvector memory backend configured")
@@ -459,15 +446,14 @@ impl AppCore {
                 }
             }
             None => {
-                // 嵌入式 PG 正在后台安装/启动；会话与长期记忆暂不可用，
+                // 内置 PG 正在后台初始化/启动；会话与长期记忆暂不可用，
                 // 引擎仍正常 ready，存储状态由 health / engine.status 上报。
                 self.observability
                     .health(
                         "storage",
                         HealthStatus::Degraded,
                         Some(
-                            "Embedded PostgreSQL is being installed in background; first launch needs network to download database components."
-                                .to_string(),
+                            "Embedded PostgreSQL is being prepared in background.".to_string(),
                         ),
                     )
                     .await;
@@ -476,13 +462,14 @@ impl AppCore {
                         "memory",
                         HealthStatus::Degraded,
                         Some(
-                            "Postgres memory backend pending embedded PostgreSQL install".to_string(),
+                            "Postgres memory backend pending embedded PostgreSQL startup"
+                                .to_string(),
                         ),
                     )
                     .await;
                 self.eventbus.publish(AppEvent::LogEntry {
                     level: "info".to_string(),
-                    message: "首次使用：正在后台自动安装嵌入式 PostgreSQL（需联网下载数据库组件），完成后会话与长期记忆自动可用"
+                    message: "正在后台初始化内置 PostgreSQL，完成后会话与长期记忆自动可用"
                         .to_string(),
                 });
             }
@@ -561,16 +548,13 @@ impl AppCore {
         Ok(self.status().await)
     }
 
-    /// 内置 PostgreSQL 的安装路径（随数据目录走）。
+    /// 内置 PostgreSQL 的程序与数据目录（程序随产物，数据随数据目录）。
     fn embedded_postgres_paths(&self) -> EmbeddedPostgresPaths {
-        EmbeddedPostgresPaths::from_data_dir(&self.storage.config().data_dir)
+        EmbeddedPostgresPaths::resolve(&self.storage.config().data_dir)
     }
 
-    /// 启动期 PostgreSQL 解析：
-    /// - 配置指向外部数据库 → 直接使用（由调用方按现状失败处理，引擎不管理外部实例）；
-    /// - 配置指向内置实例（安装器写入的本地连接串）→ 确保实例在跑：已在跑直接用，
-    ///   已安装则同步拉起，未安装则后台安装；
-    /// - 无配置 → 内置实例已在跑则直接用，否则后台自动安装/启动（幂等，不阻塞 ready）。
+    /// 启动期 PostgreSQL 解析：桌面端只使用内置实例，实例已在跑则直接连，
+    /// 已初始化则同步拉起，未就绪则转后台准备（幂等，不阻塞 ready）。
     ///
     /// 返回 None 表示内置实例尚未就绪，调用方应降级而非失败。
     async fn resolve_postgres_for_startup(
@@ -579,40 +563,6 @@ impl AppCore {
     ) -> anyhow::Result<Option<(String, String, String)>> {
         let configured = configured_postgres(config);
         let paths = self.embedded_postgres_paths();
-        if let Some(conn) = configured.connection_string {
-            if !postgres_connection_targets_embedded(&conn, &paths) {
-                return Ok(Some((conn, configured.schema, configured.table_prefix)));
-            }
-            let status = embedded_postgres_status(&paths);
-            if status.running {
-                return Ok(Some((conn, configured.schema, configured.table_prefix)));
-            }
-            if status.installed {
-                let start_paths = paths.clone();
-                match tokio::task::spawn_blocking(move || start_embedded_postgres(&start_paths))
-                    .await
-                {
-                    Ok(Ok((connection_string, _logs))) => {
-                        self.observability
-                            .log("info", "Embedded PostgreSQL started for local connection")
-                            .await;
-                        return Ok(Some((
-                            connection_string,
-                            configured.schema,
-                            configured.table_prefix,
-                        )));
-                    }
-                    Ok(Err(err)) => {
-                        tracing::warn!("start embedded postgres failed: {err}");
-                    }
-                    Err(err) => {
-                        tracing::warn!("start embedded postgres task failed: {err}");
-                    }
-                }
-            }
-            self.spawn_embedded_postgres_auto_setup();
-            return Ok(None);
-        }
         let status = embedded_postgres_status(&paths);
         if status.running {
             return Ok(Some((
@@ -620,6 +570,27 @@ impl AppCore {
                 configured.schema,
                 configured.table_prefix,
             )));
+        }
+        if status.installed {
+            let start_paths = paths.clone();
+            match tokio::task::spawn_blocking(move || start_embedded_postgres(&start_paths)).await {
+                Ok(Ok((connection_string, _logs))) => {
+                    self.observability
+                        .log("info", "Embedded PostgreSQL started")
+                        .await;
+                    return Ok(Some((
+                        connection_string,
+                        configured.schema,
+                        configured.table_prefix,
+                    )));
+                }
+                Ok(Err(err)) => {
+                    tracing::warn!("start embedded postgres failed: {err}");
+                }
+                Err(err) => {
+                    tracing::warn!("start embedded postgres task failed: {err}");
+                }
+            }
         }
         self.spawn_embedded_postgres_auto_setup();
         Ok(None)
@@ -638,23 +609,7 @@ impl AppCore {
         }
         let core = self.clone();
         tokio::spawn(async move {
-            // 仅当配置指向外部数据库时才跳过：内置实例（本地连接串）的安装/启动
-            // 由引擎自己负责，安装器写入的本地连接串不代表"用户自备数据库"。
             let paths = core.embedded_postgres_paths();
-            let skip_external = core
-                .storage
-                .load_app_config()
-                .await
-                .unwrap_or(None)
-                .and_then(|cfg| configured_postgres(&cfg).connection_string)
-                .map(|conn| !postgres_connection_targets_embedded(&conn, &paths))
-                .unwrap_or(false);
-            if skip_external {
-                tracing::info!(
-                    "external postgres configured; skipping embedded postgres auto setup"
-                );
-                return;
-            }
             let status = embedded_postgres_status(&paths);
             let should_start_only = status.installed;
             let eventbus = core.eventbus.clone();
@@ -692,24 +647,15 @@ impl AppCore {
                 let install_paths = paths.clone();
                 let install_eventbus = eventbus.clone();
                 tokio::task::spawn_blocking(move || {
-                    install_embedded_postgres(
-                        &install_paths,
-                        EmbeddedPostgresInstallOptions {
-                            skip_download: false,
-                            install_pgvector: true,
-                        },
-                        move |progress| {
-                            let event = json!({
-                                "type": "progress",
-                                "message": progress.message,
-                                "phase": progress.phase,
-                                "percent": progress.percent,
-                                "downloaded": progress.downloaded,
-                                "total": progress.total,
-                            });
-                            install_eventbus.publish(AppEvent::StorageProgress { event });
-                        },
-                    )
+                    prepare_embedded_postgres(&install_paths, move |progress| {
+                        let event = json!({
+                            "type": "progress",
+                            "message": progress.message,
+                            "phase": progress.phase,
+                            "percent": progress.percent,
+                        });
+                        install_eventbus.publish(AppEvent::StorageProgress { event });
+                    })
                 })
                 .await
             };
@@ -768,7 +714,7 @@ impl AppCore {
                         core.observability
                             .log(
                                 "info",
-                                "Embedded PostgreSQL installed and attached automatically",
+                                "Embedded PostgreSQL prepared and attached automatically",
                             )
                             .await;
                         publish(
@@ -788,12 +734,12 @@ impl AppCore {
                             "done",
                             None,
                             Some(60),
-                            "Embedded PostgreSQL installed but store attach failed".to_string(),
+                            "Embedded PostgreSQL is ready but store attach failed".to_string(),
                             Some(json!({
                                 "ok": false,
                                 "connectionString": connection_string,
                                 "logs": logs,
-                                "error": "Embedded PostgreSQL is ready but conversation/memory store attach failed; restart the app or set memory.postgres.connectionString.".to_string(),
+                                "error": "Embedded PostgreSQL is ready but conversation/memory store attach failed; restart the app.".to_string(),
                             })),
                         );
                     }
@@ -807,7 +753,7 @@ impl AppCore {
                         )
                         .await;
                     let message = format!(
-                        "嵌入式 PostgreSQL 自动安装失败：{error}（首次使用需联网下载数据库组件，请检查网络后重试）"
+                        "内置 PostgreSQL 初始化失败：{error}（请检查数据目录权限与端口占用后重试）"
                     );
                     core.observability.log("error", &message).await;
                     publish(
@@ -827,7 +773,7 @@ impl AppCore {
                         )
                         .await;
                     let message = format!(
-                        "嵌入式 PostgreSQL 自动安装任务失败：{err}（首次使用需联网下载数据库组件，请检查网络后重试）"
+                        "内置 PostgreSQL 初始化任务失败：{err}（请检查数据目录权限与端口占用后重试）"
                     );
                     core.observability.log("error", &message).await;
                     publish(
@@ -1108,7 +1054,7 @@ impl AppCore {
         AppStatus {
             protocol_version: PROTOCOL_VERSION.to_string(),
             initialized: self.storage.is_initialized().await,
-            storage_backend: "sqlite".to_string(),
+            storage_backend: self.storage.control_plane_backend().to_string(),
             active_sessions: self.sessions.list_sessions().await.len(),
             modules: vec![
                 execution_status,
@@ -1383,6 +1329,9 @@ impl AppCore {
     ) -> anyhow::Result<Vec<Value>> {
         let store = self.storage.control_plane();
         let session = session_id;
+        let Some(store) = store else {
+            return Ok(Vec::new());
+        };
         tokio::task::spawn_blocking(move || store.list_tasks(session.as_deref(), limit))
             .await?
     }
@@ -3823,417 +3772,50 @@ impl AppCore {
         }
     }
 
-    pub async fn init_postgres_status(&self, connection_string: Option<String>) -> Value {
-        if let Some(connection_string) = connection_string.as_deref().filter(|value| !value.trim().is_empty()) {
-            if init_is_sqlite_connection(connection_string) {
-                let database_path = init_sqlite_path_from_connection(connection_string)
-                    .unwrap_or_else(|| self.storage.config().database_path.clone());
-                return json!({
-                    "phase": "ready",
-                    "installed": true,
-                    "pgvectorFiles": true,
-                    "running": true,
-                    "pgvector": true,
-                    "port": 0,
-                    "database": database_path.file_name().and_then(|name| name.to_str()).unwrap_or("xuanyu.sqlite"),
-                    "username": "local",
-                    "connectionString": connection_string,
-                    "embedded": {
-                        "backend": "sqlite",
-                        "databasePath": path_to_string(&database_path),
-                        "vectorIndex": "local-hash"
-                    }
-                });
-            }
-            if init_is_postgres_connection(connection_string) {
-                let test = self
-                    .init_postgres_test_connection(connection_string.to_string())
-                    .await;
-                let phase = if test.get("connected").and_then(Value::as_bool) == Some(true) {
-                    if test.get("pgvector").and_then(Value::as_bool) == Some(true) {
-                        "ready"
-                    } else {
-                        "needs_pgvector"
-                    }
-                } else {
-                    "not_running"
-                };
-                return json!({
-                    "phase": phase,
-                    "installed": test.get("connected").and_then(Value::as_bool).unwrap_or(false),
-                    "pgvectorFiles": test.get("pgvector").and_then(Value::as_bool).unwrap_or(false),
-                    "running": test.get("connected").and_then(Value::as_bool).unwrap_or(false),
-                    "pgvector": test.get("pgvector").and_then(Value::as_bool).unwrap_or(false),
-                    "connectionString": connection_string,
-                    "error": test.get("error").cloned().unwrap_or(Value::Null),
-                });
-            }
-        }
-
-        let paths = EmbeddedPostgresPaths::from_data_dir(&self.storage.config().data_dir);
-        let embedded = embedded_postgres_status(&paths);
-        if embedded.running && embedded.pgvector {
-            return serde_json::to_value(embedded).unwrap_or_else(|_| json!({}));
-        }
-
-        let storage = self.storage.config();
-        let database_path = storage.database_path.clone();
-        let data_dir = database_path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| storage.data_dir.join("db"));
-        let mut status = serde_json::to_value(&embedded).unwrap_or_else(|_| json!({}));
-        if status
-            .get("connectionString")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .is_empty()
-        {
-            status["connectionString"] = json!(paths.connection_string());
-        }
-        if !embedded.installed {
-            let sqlite_ready = self.storage.is_initialized().await
-                && fs::metadata(&database_path)
-                    .map(|metadata| metadata.is_file())
-                    .unwrap_or(false);
-            status["sqliteFallback"] = json!({
-                "phase": if sqlite_ready { "ready" } else { "needs_install" },
-                "connectionString": init_sqlite_connection_string(&database_path),
-                "embedded": {
-                    "backend": "sqlite",
-                    "databasePath": path_to_string(&database_path),
-                    "vectorIndex": "local-hash"
-                },
-                "dataDir": path_to_string(&data_dir),
-            });
-            if sqlite_ready {
-                status["phase"] = json!("ready");
-                status["installed"] = json!(true);
-                status["running"] = json!(true);
-                status["pgvector"] = json!(true);
-                status["pgvectorFiles"] = json!(true);
-                status["database"] = json!(database_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("xuanyu.sqlite"));
-                status["connectionString"] = json!(init_sqlite_connection_string(&database_path));
-                status["embedded"] = json!({
-                    "backend": "sqlite",
-                    "databasePath": path_to_string(&database_path),
-                    "vectorIndex": "local-hash"
-                });
-            }
-        }
-        status
+    pub async fn init_postgres_status(&self) -> Value {
+        let paths = self.embedded_postgres_paths();
+        serde_json::to_value(embedded_postgres_status(&paths)).unwrap_or_else(|_| json!({}))
     }
 
-    pub async fn init_postgres_install(
-        &self,
-        payload: Value,
-        progress_tx: Option<std::sync::mpsc::Sender<Value>>,
-    ) -> Value {
-        let paths = EmbeddedPostgresPaths::from_data_dir(&self.storage.config().data_dir);
-        let options = EmbeddedPostgresInstallOptions {
-            skip_download: payload
-                .get("skipDownload")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            install_pgvector: payload
-                .get("installPgvector")
-                .and_then(Value::as_bool)
-                .unwrap_or(true),
-        };
-        let install_paths = paths.clone();
+    /// 确保内置 PostgreSQL 就绪（未初始化则初始化，已初始化则直接拉起）。
+    pub async fn init_postgres_start(&self) -> anyhow::Result<Value> {
+        let paths = self.embedded_postgres_paths();
+        let start_paths = paths.clone();
         let result = tokio::task::spawn_blocking(move || {
-            install_embedded_postgres(&install_paths, options, |progress| {
-                if let Some(tx) = progress_tx.as_ref() {
-                    let mut event = json!({
-                        "type": "progress",
-                        "phase": progress.phase,
-                        "percent": progress.percent,
-                        "message": progress.message,
-                    });
-                    if let Some(downloaded) = progress.downloaded {
-                        event["downloaded"] = json!(downloaded);
-                    }
-                    if let Some(total) = progress.total {
-                        event["total"] = json!(total);
-                    }
-                    let _ = tx.send(event);
-                }
-            })
+            if embedded_postgres_status(&start_paths).installed {
+                start_embedded_postgres(&start_paths)
+            } else {
+                prepare_embedded_postgres(&start_paths, |_| {})
+            }
         })
         .await;
         match result {
             Ok(Ok((connection_string, logs))) => {
                 let status = embedded_postgres_status(&paths);
-                json!({
+                Ok(json!({
                     "ok": true,
                     "connectionString": connection_string,
-                    "config": status.embedded,
                     "pgvector": status.pgvector,
                     "logs": logs,
-                })
+                }))
             }
-            Ok(Err(error)) => json!({
-                "ok": false,
-                "error": error,
-                "logs": [],
-            }),
-            Err(error) => json!({
-                "ok": false,
-                "error": error.to_string(),
-                "logs": [],
-            }),
+            Ok(Err(error)) => Ok(json!({ "ok": false, "error": error, "logs": [] })),
+            Err(error) => Ok(json!({ "ok": false, "error": error.to_string(), "logs": [] })),
         }
     }
 
-    pub async fn init_postgres_test_connection(&self, connection_string: String) -> Value {
-        let started = std::time::Instant::now();
-        let trimmed = connection_string.trim();
-        if trimmed.is_empty() {
-            return json!({
-                "ok": false,
-                "connected": false,
-                "verified": true,
-                "pgvector": false,
-                "error": "Connection string is required."
-            });
-        }
-
-        if init_is_sqlite_connection(trimmed) {
-            let database_path = init_sqlite_path_from_connection(trimmed)
-                .unwrap_or_else(|| self.storage.config().database_path.clone());
-            return json!({
-                "ok": true,
-                "connected": true,
-                "verified": true,
-                "latencyMs": started.elapsed().as_millis() as u64,
-                "version": "Local desktop store (sqlite config backend)",
-                "database": database_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("xuanyu.sqlite"),
-                "pgvector": true
-            });
-        }
-
-        if !init_is_postgres_connection(trimmed) {
-            return json!({
-                "ok": false,
-                "connected": false,
-                "verified": true,
-                "pgvector": false,
-                "error": "Use a sqlite://, postgres://, or postgresql:// connection string."
-            });
-        }
-
-        let config = LegacyPostgresConfig {
-            connection_string: trimmed.to_string(),
-            psql_path: init_postgres_psql_path(),
-        };
-        match legacy_postgres_query_scalar(&config, "SELECT version()") {
-            Ok(version) => {
-                let pgvector = legacy_postgres_query_scalar(
-                    &config,
-                    "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')",
-                )
-                .map(|value| {
-                    matches!(
-                        value.trim().to_ascii_lowercase().as_str(),
-                        "t" | "true" | "1"
-                    )
-                })
-                .unwrap_or(false);
-                json!({
-                    "ok": true,
-                    "connected": true,
-                    "verified": true,
-                    "latencyMs": started.elapsed().as_millis() as u64,
-                    "version": version,
-                    "database": init_postgres_database_name(trimmed),
-                    "pgvector": pgvector,
-                    "pgvectorError": if pgvector {
-                        Value::Null
-                    } else {
-                        Value::String("pgvector extension is not enabled in this database.".to_string())
-                    }
-                })
-            }
-            Err(err) => json!({
-                "ok": false,
-                "connected": false,
-                "verified": true,
-                "pgvector": false,
-                "error": err.to_string()
-            }),
-        }
-    }
-
-    pub async fn init_postgres_start(&self) -> anyhow::Result<Value> {
-        let data_dir = self.storage.config().data_dir.clone();
-        let paths = EmbeddedPostgresPaths::from_data_dir(&data_dir);
-        let embedded = embedded_postgres_status(&paths);
-        if embedded.installed {
-            let start_paths = paths.clone();
-            let start_result =
-                tokio::task::spawn_blocking(move || start_embedded_postgres(&start_paths)).await;
-            match start_result {
-                Ok(Ok((connection_string, logs))) => {
-                    let status = embedded_postgres_status(&paths);
-                    return Ok(json!({
-                        "ok": true,
-                        "connectionString": connection_string,
-                        "config": status.embedded,
-                        "pgvector": status.pgvector,
-                        "logs": logs,
-                    }));
-                }
-                Ok(Err(error)) => {
-                    return Ok(json!({
-                        "ok": false,
-                        "error": error,
-                        "logs": [],
-                    }));
-                }
-                Err(error) => {
-                    return Ok(json!({
-                        "ok": false,
-                        "error": error.to_string(),
-                        "logs": [],
-                    }));
-                }
-            }
-        }
-
-        self.storage.initialize().await?;
-        let status = self.init_postgres_status(None).await;
-        Ok(json!({
-            "ok": true,
-            "connectionString": status.get("connectionString").cloned().unwrap_or(Value::Null),
-            "config": status.get("embedded").cloned().unwrap_or(Value::Null),
-            "pgvector": true,
-            "logs": ["Local desktop store is ready."]
-        }))
-    }
-
-    /// `storage.get_setup`：返回外部数据库是否已配置 + 嵌入式 PG 的当前阶段。
+    /// `storage.get_setup`：内置 PostgreSQL 的数据目录是否已初始化及其当前阶段。
     pub async fn storage_get_setup(&self) -> Value {
-        let external_configured = self
-            .storage
-            .load_app_config()
-            .await
-            .unwrap_or(None)
-            .map(|cfg| {
-                cfg.get("memory")
-                    .and_then(|memory| memory.get("postgres"))
-                    .and_then(|pg| {
-                        pg.get("connectionString")
-                            .or_else(|| pg.get("connection_string"))
-                    })
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .is_some()
-            })
-            .unwrap_or(false);
-        let paths = EmbeddedPostgresPaths::from_data_dir(&self.storage.config().data_dir);
+        let paths = self.embedded_postgres_paths();
         let status = embedded_postgres_status(&paths);
         let embedded_phase = serde_json::to_value(status.phase)
-            .and_then(|value| {
-                value
-                    .as_str()
-                    .map(str::to_string)
-                    .ok_or_else(|| serde_json::Error::io(std::io::Error::other("not a string")))
-            })
-            .unwrap_or_else(|_| "unknown".to_string());
+            .ok()
+            .and_then(|value| value.as_str().map(str::to_string))
+            .unwrap_or_else(|| "unknown".to_string());
         json!({
-            "externalConfigured": external_configured,
             "embeddedInstalled": status.installed,
             "embeddedPhase": embedded_phase,
         })
-    }
-
-    /// `storage.test_external_connection`：只测试连接 + `select version()`，不写配置。
-    pub async fn storage_test_external_connection(&self, connection_string: String) -> Value {
-        let trimmed = connection_string.trim().to_string();
-        if trimmed.is_empty() {
-            return json!({ "ok": false, "message": "请填写连接串 / connection string is required." });
-        }
-        match self
-            .storage
-            .test_external_postgres_connection(&trimmed)
-            .await
-        {
-            Ok(version) => json!({ "ok": true, "message": version }),
-            Err(err) => json!({ "ok": false, "message": err.to_string() }),
-        }
-    }
-
-    /// `storage.save_external`：用连接串验证可建 xy_ 表（权限检查），成功后写入
-    /// 应用配置文件 `memory.postgres.connectionString`（保留其余字段原样）。
-    pub async fn storage_save_external(&self, connection_string: String) -> Value {
-        let trimmed = connection_string.trim().to_string();
-        if trimmed.is_empty() {
-            return json!({ "ok": false, "message": "请填写连接串 / connection string is required." });
-        }
-        if let Err(err) = self
-            .storage
-            .configure_conversation_store(&trimmed, "public", "xy")
-            .await
-        {
-            return json!({ "ok": false, "message": format!("数据库接入失败（需可创建 xy_ 表权限）: {err:#}") });
-        }
-        let existing = self
-            .storage
-            .load_app_config()
-            .await
-            .unwrap_or(None)
-            .unwrap_or_else(|| json!({}));
-        let mut next = existing;
-        if !next.is_object() {
-            next = json!({});
-        }
-        let object = next.as_object_mut().expect("object");
-        let memory = object
-            .entry("memory".to_string())
-            .or_insert_with(|| json!({}));
-        if !memory.is_object() {
-            *memory = json!({});
-        }
-        let pg = memory
-            .as_object_mut()
-            .expect("object")
-            .entry("postgres".to_string())
-            .or_insert_with(|| json!({}));
-        if !pg.is_object() {
-            *pg = json!({});
-        }
-        pg["connectionString"] = json!(trimmed.clone());
-        pg["connection_string"] = json!(trimmed.clone());
-        match self.storage.save_app_config(next).await {
-            Ok(config) => {
-                let configured = config
-                    .get("memory")
-                    .and_then(|memory| memory.get("postgres"))
-                    .and_then(|pg| pg.get("connectionString"))
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .is_some();
-                json!({
-                    "ok": configured,
-                    "message": if configured {
-                        "已写入外部数据库配置 / external database configured.".to_string()
-                    } else {
-                        "配置写入后未检测到连接串".to_string()
-                    },
-                })
-            }
-            Err(err) => {
-                json!({ "ok": false, "message": format!("写入配置文件失败: {err:#}") })
-            }
-        }
     }
 
     async fn apply_execution_config(&self, config: &Value) {
@@ -4336,7 +3918,6 @@ impl AppCore {
             .await;
         let now = Utc::now();
         let gateway = config.get("gateway").and_then(Value::as_object);
-        let memory_cfg = config.get("memory").and_then(Value::as_object);
         let sensitive_scan = scan_sensitive_files(&cwd);
         let security = SecurityStatusDto {
             warnings: format_sensitive_scan_warnings(&sensitive_scan),
@@ -4349,38 +3930,13 @@ impl AppCore {
             pgvector: conversation_health.pgvector,
             error: conversation_health.error,
         };
-        let memory_backend = memory_cfg
-            .and_then(|item| item.get("backend"))
-            .and_then(Value::as_str)
-            .unwrap_or("sqlite")
-            .to_string();
-        let memory_conn = memory_cfg
-            .and_then(|item| item.get("postgres"))
-            .and_then(Value::as_object)
-            .and_then(|postgres| postgres.get("connectionString").and_then(Value::as_str))
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
-        let postgres_configured = memory_conn.is_some();
+        let memory_backend = self.storage.control_plane_backend().to_string();
         let postgres_active = self.memory.has_postgres().await;
-        let memory_backend_lc = memory_backend.trim().to_ascii_lowercase();
-        let memory_ok = match memory_backend_lc.as_str() {
-            "postgres" | "postgresql" => postgres_active,
-            _ => true,
-        };
         let memory = MemoryStoreHealthDto {
             backend: memory_backend,
-            postgres_configured,
-            ok: memory_ok,
-            location: memory_conn.clone(),
-            pgvector: if postgres_active {
-                Some(true)
-            } else if postgres_configured && matches!(memory_backend_lc.as_str(), "postgres" | "postgresql")
-            {
-                Some(false)
-            } else {
-                None
-            },
+            ok: postgres_active,
+            location: Some(path_to_string(&self.embedded_postgres_paths().data_dir)),
+            pgvector: postgres_active.then_some(true),
         };
         let gateway = GatewayStatusDto {
             enabled: gateway
@@ -4537,7 +4093,6 @@ impl AppCore {
             "health": self.observability.health_summary().await,
             "alerts": self.observability.alerts(limit).await,
             "profileSpans": self.observability.profile_spans(limit).await,
-            "release": release_readiness_snapshot(&self.workspace_root),
             "runs": self.runs.list_runs(limit.min(100)).await,
         });
         let json_bytes = serde_json::to_vec_pretty(&payload)?;
@@ -6377,14 +5932,8 @@ fn provider_config_doctor_check(config: &Value) -> DoctorCheckDto {
 }
 
 fn memory_backend_doctor_check(memory: &MemoryStoreHealthDto) -> DoctorCheckDto {
-    let backend = memory.backend.trim().to_ascii_lowercase();
-    let (status, detail, suggestion) = match backend.as_str() {
-        "sqlite" | "local" | "file" => (
-            DoctorCheckStatus::Ok,
-            format!("{} local desktop memory store", memory.backend),
-            None,
-        ),
-        "postgres" | "postgresql" if memory.ok && memory.pgvector == Some(true) => (
+    let (status, detail, suggestion) = if memory.ok && memory.pgvector == Some(true) {
+        (
             DoctorCheckStatus::Ok,
             format!(
                 "PostgreSQL/pgvector memory active ({})",
@@ -6392,25 +5941,22 @@ fn memory_backend_doctor_check(memory: &MemoryStoreHealthDto) -> DoctorCheckDto 
                     .location
                     .as_deref()
                     .map(summarize_db_location)
-                    .unwrap_or_else(|| "connected".to_string())
+                    .unwrap_or_else(|| "embedded".to_string())
             ),
             None,
-        ),
-        "postgres" | "postgresql" if memory.postgres_configured => (
+        )
+    } else if memory.ok {
+        (
+            DoctorCheckStatus::Ok,
+            "PostgreSQL memory active".to_string(),
+            None,
+        )
+    } else {
+        (
             DoctorCheckStatus::Warn,
-            "PostgreSQL is configured but the live memory store is not attached.".to_string(),
-            Some("Restart the local engine after Postgres/pgvector is ready."),
-        ),
-        "postgres" | "postgresql" => (
-            DoctorCheckStatus::Warn,
-            "memory.backend=postgres but no connectionString is configured.".to_string(),
-            Some("Add memory.postgres.connectionString in storage settings."),
-        ),
-        _ => (
-            DoctorCheckStatus::Warn,
-            format!("Unknown memory backend '{}'.", memory.backend),
-            Some("Open storage settings and choose postgres or a supported local backend."),
-        ),
+            "Embedded PostgreSQL/pgvector is not ready yet.".to_string(),
+            Some("Wait for the embedded PostgreSQL startup to finish, then retry."),
+        )
     };
     doctor_check("Memory backend", status, detail, suggestion)
 }
@@ -9945,6 +9491,18 @@ fn normalize_printed_mainbrain_tool_call(
     calls
 }
 
+fn json_object_to_btree(value: Option<&Value>) -> BTreeMap<String, Value> {
+    value
+        .and_then(Value::as_object)
+        .map(|object| {
+            object
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn mainbrain_args_from_value(value: Option<&Value>) -> Option<BTreeMap<String, Value>> {
     match value? {
         Value::Object(_) => Some(json_object_to_btree(value)),
@@ -10476,7 +10034,6 @@ pub struct ConversationStoreHealthDto {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryStoreHealthDto {
     pub backend: String,
-    pub postgres_configured: bool,
     pub ok: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
@@ -10508,12 +10065,6 @@ pub struct InitModelsFetchInput {
 pub struct InitModelsFetchResult {
     pub models: Vec<String>,
     pub error: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct LegacyPostgresConfig {
-    connection_string: String,
-    psql_path: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -10811,173 +10362,28 @@ fn ensure_json_object(value: &mut Value) -> &mut serde_json::Map<String, Value> 
     value.as_object_mut().expect("json object")
 }
 
-fn legacy_postgres_query_scalar(
-    config: &LegacyPostgresConfig,
-    sql: &str,
-) -> anyhow::Result<String> {
-    let output = Command::new(&config.psql_path)
-        .arg("-X")
-        .arg("-q")
-        .arg("-A")
-        .arg("-t")
-        .arg("--set")
-        .arg("ON_ERROR_STOP=1")
-        .arg("--pset")
-        .arg("footer=off")
-        .arg("--dbname")
-        .arg(&config.connection_string)
-        .arg("-c")
-        .arg(sql)
-        .output()
-        .map_err(|err| {
-            anyhow::anyhow!(
-                "Cannot execute psql '{}': {err}",
-                path_to_string(&config.psql_path)
-            )
-        })?;
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if output.status.success() {
-        return Ok(stdout);
-    }
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    anyhow::bail!(
-        "psql '{}' exited with status {}: {}",
-        path_to_string(&config.psql_path),
-        output
-            .status
-            .code()
-            .map(|code| code.to_string())
-            .unwrap_or_else(|| "terminated".to_string()),
-        if stderr.is_empty() { stdout } else { stderr }
-    );
-}
-
-fn json_object_to_btree(value: Option<&Value>) -> BTreeMap<String, Value> {
-    value
-        .and_then(Value::as_object)
-        .map(|object| {
-            object
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-fn init_is_sqlite_connection(value: &str) -> bool {
-    value.trim().to_ascii_lowercase().starts_with("sqlite:")
-}
-
-fn init_is_postgres_connection(value: &str) -> bool {
-    let value = value.trim().to_ascii_lowercase();
-    value.starts_with("postgres://") || value.starts_with("postgresql://")
-}
-
-fn init_sqlite_path_from_connection(value: &str) -> Option<PathBuf> {
-    let trimmed = value.trim();
-    let lower = trimmed.to_ascii_lowercase();
-    let raw = if lower.starts_with("sqlite://") {
-        &trimmed["sqlite://".len()..]
-    } else if lower.starts_with("sqlite:") {
-        &trimmed["sqlite:".len()..]
-    } else {
-        return None;
-    };
-    let decoded = raw.replace("%20", " ");
-    let normalized = if decoded.len() > 3
-        && decoded.starts_with('/')
-        && decoded.as_bytes().get(2).is_some_and(|byte| *byte == b':')
-    {
-        &decoded[1..]
-    } else {
-        decoded.as_str()
-    };
-    if normalized.trim().is_empty() {
-        None
-    } else {
-        Some(PathBuf::from(normalized))
-    }
-}
-
-fn init_sqlite_connection_string(path: &Path) -> String {
-    format!("sqlite://{}", path_to_string(path).replace('\\', "/"))
-}
-
-fn init_postgres_psql_path() -> PathBuf {
-    PathBuf::from(if cfg!(windows) { "psql.exe" } else { "psql" })
-}
-
-/// 配置中声明的 PostgreSQL 设置（连接串为空表示未配置）。
+/// 配置中声明的 PostgreSQL schema 与表名前缀（连接参数由内置实例固定提供）。
 struct ConfiguredPostgres {
-    connection_string: Option<String>,
     schema: String,
     table_prefix: String,
 }
 
 fn configured_postgres(config: &Value) -> ConfiguredPostgres {
     let pg = config.get("memory").and_then(|memory| memory.get("postgres"));
-    let connection_string = pg
-        .and_then(|item| {
-            item.get("connectionString")
-                .or_else(|| item.get("connection_string"))
-        })
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string);
     let schema = pg
         .and_then(|item| item.get("schema"))
         .and_then(Value::as_str)
         .unwrap_or("public")
         .to_string();
     let table_prefix = pg
-        .and_then(|item| {
-            item.get("tablePrefix")
-                .or_else(|| item.get("table_prefix"))
-        })
+        .and_then(|item| item.get("tablePrefix").or_else(|| item.get("table_prefix")))
         .and_then(Value::as_str)
         .unwrap_or("xy")
         .to_string();
     ConfiguredPostgres {
-        connection_string,
         schema,
         table_prefix,
     }
-}
-
-/// 连接串是否指向引擎自带的内置实例（回环地址 + 内置端口）。
-///
-/// 安装器会把内置实例的连接串写进配置，这类"本地连接串"仍由引擎负责启动与自愈；
-/// 只有真正指向外部主机的连接串才被当作外部数据库，引擎不做任何本地实例管理。
-fn postgres_connection_targets_embedded(conn: &str, paths: &EmbeddedPostgresPaths) -> bool {
-    const DEFAULT_PORT: u16 = 5432;
-    let without_scheme = conn
-        .split_once("://")
-        .map(|(_, rest)| rest)
-        .unwrap_or(conn);
-    let authority = without_scheme
-        .split(['/', '?'])
-        .next()
-        .unwrap_or(without_scheme);
-    let host_port = authority.rsplit('@').next().unwrap_or(authority);
-    let (host, port) = match host_port.rsplit_once(':') {
-        Some((host, port)) => (host, port.parse::<u16>().unwrap_or(DEFAULT_PORT)),
-        None => (host_port, DEFAULT_PORT),
-    };
-    let host = host.trim_matches(['[', ']']).to_ascii_lowercase();
-    matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1") && port == paths.port
-}
-
-fn init_postgres_database_name(connection_string: &str) -> String {
-    let without_query = connection_string
-        .split_once('?')
-        .map(|(head, _)| head)
-        .unwrap_or(connection_string);
-    without_query
-        .rsplit('/')
-        .next()
-        .filter(|database| !database.is_empty() && !database.contains(':'))
-        .map(|database| database.replace("%20", " "))
-        .unwrap_or_else(|| "postgres".to_string())
 }
 
 fn redact_json_clone(value: &Value) -> Value {
@@ -11516,238 +10922,6 @@ fn backup_restore_path(
     restored_files.push(path_to_string(relative));
     *total_bytes += metadata.len();
     Ok(())
-}
-
-fn release_readiness_snapshot(workspace_root: &Path) -> Value {
-    let release_root = locate_release_workspace_root(workspace_root);
-    let package_json_path = release_root.join("package.json");
-    let desktop_package_json_path = release_root.join("apps/desktop-ui/package.json");
-    let tauri_config_path = release_root.join("crates/xuanyu-app/tauri.conf.json");
-    let root_package = read_json_file(&package_json_path);
-    let desktop_package = read_json_file(&desktop_package_json_path);
-    let tauri_config = read_json_file(&tauri_config_path);
-    let root_scripts = root_package
-        .as_ref()
-        .and_then(|value| value.get("scripts"))
-        .and_then(Value::as_object);
-
-    let mut scripts = BTreeMap::new();
-    for script in [
-        "dev",
-        "build",
-        "typecheck",
-        "smoke",
-        "build:all",
-        "build:installer",
-        "release:manifest",
-    ] {
-        scripts.insert(
-            script.to_string(),
-            package_script_status(root_scripts, script),
-        );
-    }
-
-    let file_checks = vec![
-        file_check("devScript", release_root.join("scripts/dev.ps1")),
-        file_check("buildScript", release_root.join("scripts/build.ps1")),
-        file_check("smokeScript", release_root.join("scripts/smoke.ps1")),
-        file_check(
-            "installerScript",
-            release_root.join("scripts/build-installer.ps1"),
-        ),
-        file_check(
-            "releaseManifestScript",
-            release_root.join("scripts/release-manifest.ps1"),
-        ),
-        file_check(
-            "deploymentDocs",
-            release_root.join("docs/deployment/README.md"),
-        ),
-        file_check(
-            "frontendDist",
-            release_root.join("apps/desktop-ui/dist/index.html"),
-        ),
-    ];
-
-    let tauri_bundle_active = tauri_config
-        .as_ref()
-        .and_then(|value| value.pointer("/bundle/active"))
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let tauri_targets = tauri_config
-        .as_ref()
-        .and_then(|value| value.pointer("/bundle/targets"))
-        .cloned()
-        .unwrap_or(Value::Null);
-    let updater_configured = tauri_config
-        .as_ref()
-        .and_then(|value| value.pointer("/plugins/updater"))
-        .is_some();
-
-    let checks = vec![
-        release_check(
-            "rootPackage",
-            package_json_path.exists(),
-            "Root package.json is readable.",
-        ),
-        release_check(
-            "smokeCommand",
-            root_scripts
-                .and_then(|scripts| scripts.get("smoke"))
-                .and_then(Value::as_str)
-                .is_some(),
-            "pnpm run smoke is configured.",
-        ),
-        release_check(
-            "bundleCommand",
-            root_scripts
-                .and_then(|scripts| scripts.get("bundle"))
-                .and_then(Value::as_str)
-                .is_some(),
-            "pnpm run bundle is configured.",
-        ),
-        release_check(
-            "releaseManifestCommand",
-            root_scripts
-                .and_then(|scripts| scripts.get("release:manifest"))
-                .and_then(Value::as_str)
-                .is_some(),
-            "pnpm run release:manifest is configured.",
-        ),
-        release_check(
-            "releaseManifestScript",
-            release_root.join("scripts/release-manifest.ps1").is_file(),
-            "Static updater manifest generator is present.",
-        ),
-        release_check(
-            "tauriBundle",
-            tauri_bundle_active,
-            "Tauri bundle output is enabled.",
-        ),
-        release_check(
-            "deploymentDocs",
-            release_root.join("docs/deployment/README.md").is_file(),
-            "Deployment notes are present.",
-        ),
-        release_check(
-            "updaterConfig",
-            updater_configured,
-            "Tauri updater plugin is configured.",
-        ),
-    ];
-
-    let gaps = checks
-        .iter()
-        .filter(|check| {
-            check
-                .get("ok")
-                .and_then(Value::as_bool)
-                .map(|ok| !ok)
-                .unwrap_or(false)
-        })
-        .filter_map(|check| check.get("name").and_then(Value::as_str))
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-
-    json!({
-        "workspaceRoot": path_to_string(&release_root),
-        "coreVersion": env!("CARGO_PKG_VERSION"),
-        "environment": {
-            "envScript": "D:\\develop\\environment\\xuanyu-agent-app-env.ps1",
-            "envScriptExists": Path::new("D:\\develop\\environment\\xuanyu-agent-app-env.ps1").is_file()
-        },
-        "package": {
-            "name": root_package
-                .as_ref()
-                .and_then(|value| value.get("name"))
-                .and_then(Value::as_str),
-            "version": root_package
-                .as_ref()
-                .and_then(|value| value.get("version"))
-                .and_then(Value::as_str),
-            "packageManager": root_package
-                .as_ref()
-                .and_then(|value| value.get("packageManager"))
-                .and_then(Value::as_str),
-            "desktopVersion": desktop_package
-                .as_ref()
-                .and_then(|value| value.get("version"))
-                .and_then(Value::as_str),
-            "scripts": scripts
-        },
-        "tauri": {
-            "configPath": path_to_string(&tauri_config_path),
-            "productName": tauri_config
-                .as_ref()
-                .and_then(|value| value.get("productName"))
-                .and_then(Value::as_str),
-            "version": tauri_config
-                .as_ref()
-                .and_then(|value| value.get("version"))
-                .and_then(Value::as_str),
-            "identifier": tauri_config
-                .as_ref()
-                .and_then(|value| value.get("identifier"))
-                .and_then(Value::as_str),
-            "bundleActive": tauri_bundle_active,
-            "bundleTargets": tauri_targets,
-            "updaterConfigured": updater_configured
-        },
-        "files": file_checks,
-        "checks": checks,
-        "gaps": gaps
-    })
-}
-
-fn locate_release_workspace_root(start: &Path) -> PathBuf {
-    let mut current = if start.is_file() {
-        start.parent().unwrap_or(start).to_path_buf()
-    } else {
-        start.to_path_buf()
-    };
-
-    loop {
-        if current.join("package.json").is_file()
-            && current.join("crates/xuanyu-app/tauri.conf.json").is_file()
-        {
-            return current;
-        }
-
-        if !current.pop() {
-            return start.to_path_buf();
-        }
-    }
-}
-
-fn read_json_file(path: &Path) -> Option<Value> {
-    let text = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&text).ok()
-}
-
-fn package_script_status(scripts: Option<&serde_json::Map<String, Value>>, name: &str) -> Value {
-    let command = scripts
-        .and_then(|scripts| scripts.get(name))
-        .and_then(Value::as_str);
-    json!({
-        "configured": command.is_some(),
-        "command": command
-    })
-}
-
-fn file_check(name: &str, path: PathBuf) -> Value {
-    json!({
-        "name": name,
-        "path": path_to_string(&path),
-        "exists": path.is_file()
-    })
-}
-
-fn release_check(name: &str, ok: bool, detail: &str) -> Value {
-    json!({
-        "name": name,
-        "ok": ok,
-        "detail": detail
-    })
 }
 
 fn write_single_file_zip(path: &Path, entry_name: &str, bytes: &[u8]) -> anyhow::Result<()> {

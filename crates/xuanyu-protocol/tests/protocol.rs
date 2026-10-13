@@ -26,7 +26,7 @@ fn envelope_new_sets_kind_source_target_and_id() {
     let payload = AppStatus {
         protocol_version: xuanyu_protocol::PROTOCOL_VERSION.to_string(),
         initialized: true,
-        storage_backend: "sqlite".into(),
+        storage_backend: "postgres".into(),
         active_sessions: 0,
         modules: Vec::new(),
         workers: Vec::new(),

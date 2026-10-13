@@ -1,35 +1,118 @@
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
-/// 全局应用数据目录名（`.xuanyu`）。
-pub const APP_DIR_NAME: &str = ".xuanyu";
+/// 应用目录名：Windows / macOS 用产品名，Linux 遵循 XDG 小写惯例。
+#[cfg(any(windows, target_os = "macos"))]
+pub const APP_DIR_NAME: &str = "XuanYu";
+#[cfg(not(any(windows, target_os = "macos")))]
+pub const APP_DIR_NAME: &str = "xuanyu";
 
 /// 全局配置文件名。
 pub const PROJECT_CONFIG_FILE_NAME: &str = "xuanyu.json";
 
-/// 用户主目录。
-pub fn user_home() -> PathBuf {
-    if let Some(home) = std::env::var_os("HOME").filter(|value| !value.is_empty()) {
-        return PathBuf::from(home);
+/// 数据根显式覆盖用环境变量（命令行与自动化）。
+const DATA_ROOT_ENV: &str = "XUANYU_DATA_DIR";
+
+fn non_empty_env(name: &str) -> Option<PathBuf> {
+    std::env::var_os(name)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+/// 用户主目录：Windows 取 `USERPROFILE`，其余平台取 `HOME`。
+fn user_home() -> PathBuf {
+    #[cfg(windows)]
+    {
+        if let Some(profile) = non_empty_env("USERPROFILE") {
+            return profile;
+        }
     }
-    if let Some(profile) = std::env::var_os("USERPROFILE").filter(|value| !value.is_empty()) {
-        return PathBuf::from(profile);
+    #[cfg(not(windows))]
+    {
+        if let Some(home) = non_empty_env("HOME") {
+            return home;
+        }
     }
     PathBuf::from(".")
 }
 
-/// 未配置 appDataDir 时的默认应用数据目录（`{用户主目录}/.xuanyu`）。
-pub fn global_app_dir() -> PathBuf {
-    user_home().join(APP_DIR_NAME)
+/// 配置目录：Windows `%APPDATA%\XuanYu`、macOS `~/Library/Application Support/XuanYu`、
+/// 其余 unix `$XDG_CONFIG_HOME/xuanyu`。
+#[cfg(windows)]
+pub fn config_dir() -> PathBuf {
+    non_empty_env("APPDATA")
+        .unwrap_or_else(|| user_home().join("AppData").join("Roaming"))
+        .join(APP_DIR_NAME)
 }
 
-/// 全局配置文件路径（固定）：`{用户主目录}/.xuanyu/xuanyu.json`。
+/// 配置目录：见 `config_dir` 的 Windows 分支。
+#[cfg(target_os = "macos")]
+pub fn config_dir() -> PathBuf {
+    user_home()
+        .join("Library")
+        .join("Application Support")
+        .join(APP_DIR_NAME)
+}
+
+/// 配置目录：见 `config_dir` 的 Windows 分支。
+#[cfg(all(unix, not(target_os = "macos")))]
+pub fn config_dir() -> PathBuf {
+    non_empty_env("XDG_CONFIG_HOME")
+        .unwrap_or_else(|| user_home().join(".config"))
+        .join(APP_DIR_NAME)
+}
+
+/// 平台标准数据目录：Windows `%LOCALAPPDATA%\XuanYu`、
+/// macOS `~/Library/Application Support/XuanYu`、其余 unix `$XDG_DATA_HOME/xuanyu`。
+#[cfg(windows)]
+pub fn platform_data_dir() -> PathBuf {
+    non_empty_env("LOCALAPPDATA")
+        .unwrap_or_else(|| user_home().join("AppData").join("Local"))
+        .join(APP_DIR_NAME)
+}
+
+/// 平台标准数据目录：见 `platform_data_dir` 的 Windows 分支。
+#[cfg(target_os = "macos")]
+pub fn platform_data_dir() -> PathBuf {
+    user_home()
+        .join("Library")
+        .join("Application Support")
+        .join(APP_DIR_NAME)
+}
+
+/// 平台标准数据目录：见 `platform_data_dir` 的 Windows 分支。
+#[cfg(all(unix, not(target_os = "macos")))]
+pub fn platform_data_dir() -> PathBuf {
+    non_empty_env("XDG_DATA_HOME")
+        .unwrap_or_else(|| user_home().join(".local").join("share"))
+        .join(APP_DIR_NAME)
+}
+
+/// 平台标准日志目录：Windows `%LOCALAPPDATA%\XuanYu\logs`、
+/// macOS `~/Library/Logs/XuanYu`、其余 unix `$XDG_STATE_HOME/xuanyu/logs`。
+#[cfg(windows)]
+pub fn logs_dir() -> PathBuf {
+    platform_data_dir().join("logs")
+}
+
+/// 平台标准日志目录：见 `logs_dir` 的 Windows 分支。
+#[cfg(target_os = "macos")]
+pub fn logs_dir() -> PathBuf {
+    user_home().join("Library").join("Logs").join(APP_DIR_NAME)
+}
+
+/// 平台标准日志目录：见 `logs_dir` 的 Windows 分支。
+#[cfg(all(unix, not(target_os = "macos")))]
+pub fn logs_dir() -> PathBuf {
+    non_empty_env("XDG_STATE_HOME")
+        .unwrap_or_else(|| user_home().join(".local").join("state"))
+        .join(APP_DIR_NAME)
+        .join("logs")
+}
+
+/// 全局配置文件路径：`{配置目录}/xuanyu.json`。
 pub fn resolve_global_config_file() -> PathBuf {
-    global_app_dir().join(PROJECT_CONFIG_FILE_NAME)
-}
-
-/// 默认运行时应用数据根目录（与参考项目默认 appDataDir 一致）。
-pub fn default_app_data_dir() -> PathBuf {
-    global_app_dir()
+    config_dir().join(PROJECT_CONFIG_FILE_NAME)
 }
 
 /// Windows 记事本等工具写入的 UTF-8 BOM，serde_json 会直接解析失败。
@@ -37,75 +120,45 @@ pub fn strip_utf8_bom(text: &str) -> &str {
     text.strip_prefix('\u{feff}').unwrap_or(text)
 }
 
-/// Init 选择父目录时规范化为 `.xuanyu` 数据根。
-pub fn resolve_app_dir_from_selection(selected_dir: &str) -> PathBuf {
-    let trimmed = selected_dir.trim();
-    if trimmed.is_empty() {
-        return global_app_dir();
-    }
-    let resolved = PathBuf::from(trimmed);
-    if resolved
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.eq_ignore_ascii_case(APP_DIR_NAME))
-    {
-        return resolved;
-    }
-    resolved.join(APP_DIR_NAME)
-}
-
-/// `{appDataDir}/store/...`
-pub fn store_path(data_dir: &Path, parts: &[&str]) -> PathBuf {
-    let mut path = data_dir.join("store");
-    for part in parts {
-        path.push(part);
-    }
-    path
-}
-
-/// 嵌入式 PostgreSQL 根目录：`{appDataDir}/store/postgres`。
-pub fn embedded_postgres_root(data_dir: &Path) -> PathBuf {
-    store_path(data_dir, &["postgres"])
-}
-
-/// 内置 PostgreSQL 安装包缓存目录（跨重装复用）。
+/// 内置 PostgreSQL 数据目录（`initdb` 产物）：`{数据根}/store/postgres/data`。
 ///
-/// 归档包有数百 MB，而安装目录每次重装都会被清空，所以缓存必须放在安装目录之外：
-/// Windows 为 `%LOCALAPPDATA%\XuanYu\cache\postgres`，其它平台为 `~/.cache/xuanyu/postgres`。
-/// 可用环境变量 `XUANYU_POSTGRES_CACHE_DIR` 覆盖（测试时可指向已有归档的目录）。
-pub fn postgres_cache_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("XUANYU_POSTGRES_CACHE_DIR").filter(|value| !value.is_empty())
-    {
-        return PathBuf::from(dir);
-    }
-    #[cfg(windows)]
-    {
-        if let Some(local) = std::env::var_os("LOCALAPPDATA").filter(|value| !value.is_empty()) {
-            return PathBuf::from(local)
-                .join("XuanYu")
-                .join("cache")
-                .join("postgres");
-        }
-    }
-    user_home().join(".cache").join("xuanyu").join("postgres")
+/// 程序文件随产物落在安装目录（只读），数据目录落平台标准数据目录（可写）。
+pub fn embedded_postgres_data_dir(data_root: &Path) -> PathBuf {
+    data_root.join("store").join("postgres").join("data")
 }
 
-/// Desktop sqlite 控制面：`{appDataDir}/store/sqlite/xuanyu.sqlite`。
-pub fn default_sqlite_database_path(data_dir: &Path) -> PathBuf {
-    store_path(data_dir, &["sqlite", "xuanyu.sqlite"])
-}
+static CONFIGURED_DATA_DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
 
-/// 运行时数据根：优先取环境变量 `XUANYU_DATA_DIR`（便携式/桌面安装时由启动器注入，
-/// 指向 `<安装目录>\data`），未设置时回退 `{用户主目录}/.xuanyu`。
+/// 运行时数据根，按三级覆盖链解析：环境变量 `XUANYU_DATA_DIR` > 配置 `appDataDir` >
+/// 平台标准数据目录。
 ///
-/// 所有运行时数据（项目级与全局）都应放在此目录之下；唯一例外是配置文件
-/// `xuanyu.json`，它固定位于 `{用户主目录}/.xuanyu/xuanyu.json`。
-/// 业务代码不应再在项目目录内创建 `.xuanyu` 目录。
+/// 所有运行时数据（项目级与全局）都放在此目录之下；配置文件独立位于配置目录。
 pub fn runtime_data_root() -> PathBuf {
-    if let Some(dir) = std::env::var_os("XUANYU_DATA_DIR").filter(|value| !value.is_empty()) {
-        return PathBuf::from(dir);
+    if let Some(dir) = non_empty_env(DATA_ROOT_ENV) {
+        return dir;
     }
-    global_app_dir()
+    if let Some(dir) = configured_data_dir() {
+        return dir;
+    }
+    platform_data_dir()
+}
+
+/// 配置 `appDataDir`；进程内只读取一次。
+fn configured_data_dir() -> Option<PathBuf> {
+    CONFIGURED_DATA_DIR
+        .get_or_init(read_configured_data_dir)
+        .clone()
+}
+
+fn read_configured_data_dir() -> Option<PathBuf> {
+    let text = std::fs::read_to_string(resolve_global_config_file()).ok()?;
+    let config: serde_json::Value = serde_json::from_str(strip_utf8_bom(&text)).ok()?;
+    let dir = config.get("appDataDir")?.as_str()?.trim();
+    if dir.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(dir))
+    }
 }
 
 /// 从项目根目录派生稳定、安全的项目键：目录名 sanitize + 绝对路径短哈希。

@@ -28,19 +28,12 @@ type Pending = {
   reject: (error: Error) => void;
 };
 
-export type EngineRpcClientOptions = {
-  binaryPath?: string;
-  dataDir?: string;
-};
-
 export class EngineRpcClient {
   private child: ChildProcessWithoutNullStreams | null = null;
   private nextId = 1;
   private readonly pending = new Map<string, Pending>();
   private readonly listeners = new Set<(event: EngineRpcEvent) => void>();
   private started = false;
-
-  constructor(private readonly options: EngineRpcClientOptions = {}) {}
 
   onEvent(listener: (event: EngineRpcEvent) => void): () => void {
     this.listeners.add(listener);
@@ -50,17 +43,13 @@ export class EngineRpcClient {
   async start(): Promise<unknown> {
     if (this.started) return this.request('engine.status', {});
 
-    const binary = this.options.binaryPath ?? resolveEngineBinary();
+    const binary = resolveEngineBinary();
     if (!existsSync(binary)) {
       throw new Error(`Engine binary not found: ${binary}`);
     }
 
     this.child = spawn(binary, [], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        ...(this.options.dataDir ? { XUANYU_DATA_DIR: this.options.dataDir } : {}),
-      },
       windowsHide: true,
     });
 

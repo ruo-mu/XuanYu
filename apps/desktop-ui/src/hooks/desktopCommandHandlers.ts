@@ -1546,7 +1546,7 @@ export const defaultConfig: AppConfig = {
   maxContextTokens: 128000,
   disabledTools: [],
   memory: {
-    backend: 'sqlite',
+    backend: 'postgres',
     maxEntries: 1000,
     cleanupImportanceThreshold: 3,
     postgres: {

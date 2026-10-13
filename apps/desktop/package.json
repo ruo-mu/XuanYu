@@ -18,7 +18,7 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "pack": "electron-builder --dir",
-    "dist": "pnpm run build:engine:release && electron-vite build && electron-builder",
+    "dist": "node ../../scripts/stage-engine.mjs && electron-vite build && electron-builder",
     "postinstall": "node ../../scripts/patch-nsis-templates.mjs"
   },
   "dependencies": {
@@ -81,6 +81,7 @@
       "**/node_modules/node-pty/**"
     ],
     "nsis": {
+      "artifactName": "XuanYu-Agent-${version}-windows-setup.${ext}",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
@@ -90,7 +91,7 @@
       "uninstallDisplayName": "XuanYu Agent",
       "runAfterFinish": true,
       "include": "build/installer.nsh",
-      "license": "build/install-license.txt",
+      "license": "build/license_zh_CN.txt",
       "installerLanguages": [
         "zh_CN",
         "en_US"
@@ -102,34 +103,63 @@
     "win": {
       "icon": "build/icons/icon.ico",
       "target": [
-        "nsis"
+        "nsis",
+        "zip"
       ],
+      "artifactName": "XuanYu-Agent-${version}-windows.${ext}",
       "extraResources": [
         {
-          "from": "../../target/release/xuanyu-engine-server.exe",
+          "from": "../../target/engine/${arch}/xuanyu-engine-server.exe",
           "to": "bin/xuanyu-engine-server.exe"
+        },
+        {
+          "from": "../../target/engine/${arch}/pg",
+          "to": "bin/pg"
         }
       ]
     },
     "mac": {
+      "icon": "build/icons/icon.icns",
+      "category": "public.app-category.developer-tools",
       "target": [
-        "dir"
+        "dmg",
+        "zip"
       ],
+      "artifactName": "XuanYu-Agent-${version}-mac-${arch}.${ext}",
       "extraResources": [
         {
-          "from": "../../target/release/xuanyu-engine-server",
+          "from": "../../target/engine/${arch}/xuanyu-engine-server",
           "to": "bin/xuanyu-engine-server"
+        },
+        {
+          "from": "../../target/engine/${arch}/pg",
+          "to": "bin/pg"
         }
       ]
     },
+    "appImage": {
+      "license": "build/license_zh_CN.txt"
+    },
     "linux": {
+      "icon": "build/icons/icon.png",
+      "category": "Development",
+      "maintainer": "ruomu <c3166335486@163.com>",
+      "synopsis": "Local-first desktop AI agent workspace",
+      "description": "XuanYu Agent (玄语) — a local-first desktop AI agent workspace powered by a native Rust engine, with long-term memory and a plugin / MCP / skills marketplace.",
       "target": [
-        "dir"
+        "AppImage",
+        "deb",
+        "tar.gz"
       ],
+      "artifactName": "XuanYu-Agent-${version}-linux.${ext}",
       "extraResources": [
         {
-          "from": "../../target/release/xuanyu-engine-server",
+          "from": "../../target/engine/${arch}/xuanyu-engine-server",
           "to": "bin/xuanyu-engine-server"
+        },
+        {
+          "from": "../../target/engine/${arch}/pg",
+          "to": "bin/pg"
         }
       ]
     }

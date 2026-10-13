@@ -7,27 +7,35 @@ on:
 
 jobs:
   rust:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          # macos-latest 是 arm64 运行器，host 与 target 一致才能直接跑 clippy / test
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@1.96.1
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
           components: clippy
 
       - name: Cargo check (core stack)
-        shell: pwsh
         run: |
           cargo check -p xuanyu-protocol -p xuanyu-eventbus -p xuanyu-storage -p xuanyu-channels -p xuanyu-extensions -p xuanyu-agents -p xuanyu-core -p xuanyu-cli
 
       - name: Cargo clippy (workspace, deny warnings)
-        shell: pwsh
         run: |
           cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Cargo test (fast crates)
-        shell: pwsh
         run: |
           cargo test -p xuanyu-eventbus -p xuanyu-storage -p xuanyu-execution -p xuanyu-extensions
 
@@ -40,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Frontend typecheck

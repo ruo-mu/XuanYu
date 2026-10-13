@@ -111,19 +111,12 @@ impl TantivyMemoryStore {
 
 pub fn tantivy_memory_config_from_value(value: &serde_json::Value, data_dir: &Path) -> Option<TantivyMemoryConfig> {
     let memory = value.get("memory")?;
-    let backend = memory.get("backend").and_then(|v| v.as_str())?;
-    if backend != "tantivy" && backend != "local" {
-        return None;
-    }
-    let index_path = memory
-        .get("tantivy")
-        .or_else(|| memory.get("local"))
-        .and_then(|cfg| {
-            cfg.get("indexPath")
-                .or_else(|| cfg.get("index_path"))
-                .and_then(|v| v.as_str())
-                .map(PathBuf::from)
-        })
+    let tantivy = memory.get("tantivy").or_else(|| memory.get("local"))?;
+    let index_path = tantivy
+        .get("indexPath")
+        .or_else(|| tantivy.get("index_path"))
+        .and_then(|v| v.as_str())
+        .map(PathBuf::from)
         .unwrap_or_else(|| data_dir.join("memory").join("tantivy"));
     Some(TantivyMemoryConfig { index_path })
 }

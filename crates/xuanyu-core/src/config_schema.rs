@@ -28,22 +28,10 @@ pub fn validate_app_config(config: &Value) -> Result<(), Vec<String>> {
     if let Some(memory) = config.get("memory") {
         if let Some(backend) = memory.get("backend").and_then(Value::as_str) {
             let backend = backend.trim().to_ascii_lowercase();
-            if !matches!(
-                backend.as_str(),
-                "sqlite" | "file" | "postgres" | "postgresql" | "tantivy" | "local" | ""
-            ) {
+            if !matches!(backend.as_str(), "postgres" | "postgresql" | "") {
                 errors.push(format!(
-                    "memory.backend '{backend}' is not supported (sqlite|file|postgres|tantivy)"
+                    "memory.backend '{backend}' is not supported (postgres)"
                 ));
-            }
-            if matches!(backend.as_str(), "postgres" | "postgresql") {
-                let conn = memory_postgres_connection_string(memory);
-                if conn.is_empty() {
-                    errors.push(
-                        "memory.backend=postgres requires memory.postgres.connectionString (or memory.connectionString)"
-                            .to_string(),
-                    );
-                }
             }
         }
     }
@@ -103,20 +91,6 @@ fn is_known_aux_task(key: &str) -> bool {
             | "implementation"
             | "review"
     )
-}
-
-/// Desktop config stores the URL under `memory.postgres.connectionString` (Init/ConfigPanel).
-/// Also accept top-level `memory.connectionString` for compatibility.
-fn memory_postgres_connection_string(memory: &Value) -> String {
-    memory
-        .pointer("/postgres/connectionString")
-        .or_else(|| memory.pointer("/postgres/connection_string"))
-        .or_else(|| memory.get("connectionString"))
-        .or_else(|| memory.get("connection_string"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .unwrap_or("")
-        .to_string()
 }
 
 fn validate_provider(provider: &Value, path: &str, errors: &mut Vec<String>) {

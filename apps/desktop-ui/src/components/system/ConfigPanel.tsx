@@ -54,7 +54,7 @@ const AUX_MODEL_ROLES: Array<{ id: AuxiliaryModelTask; name: [string, string]; h
   { id: 'keyfacts', name: ['关键事实分类', 'Key Fact Classification'], hint: ['约束/决策/失败等行级语义分类，建议轻量 JSON 模型', 'Line-level constraint/decision/failure classification; use a lightweight JSON model'] },
 ];
 
-export type ConfigSectionKey = 'models' | 'team' | 'permission' | 'context' | 'storage';
+export type ConfigSectionKey = 'models' | 'team' | 'permission' | 'context';
 
 export interface ConfigSectionViewProps {
   section: ConfigSectionKey;
@@ -81,9 +81,6 @@ export default function ConfigSectionView({
   }
   if (section === 'context') {
     return <ContextConfig config={config} onChange={onChange} />;
-  }
-  if (section === 'storage') {
-    return <StorageConfig config={config} onChange={onChange} />;
   }
   return null;
 }
@@ -685,46 +682,6 @@ function TeamModelConfig({ config, capabilities, onChange }: EditorProps) {
         </DataBlock>
       </PageSurface>
     </div>
-  );
-}
-
-/** 被谁调用：ConfigPanel。做什么：记忆与存储后端表单。 */
-function StorageConfig({ config, onChange }: BasicEditorProps) {
-  const lt = useLocaleText();
-  const memory = config.memory || {
-    backend: 'postgres' as const,
-    maxEntries: 1000,
-    cleanupImportanceThreshold: 3,
-  };
-  return (
-    <PageSurface>
-      <DataBlock title={lt('PostgreSQL', 'PostgreSQL')}>
-        <Form layout="vertical" className="xy-settings-form">
-          <Form.Item
-            label={lt('连接串', 'Connection string')}
-            extra={lt(
-              '会话与长期记忆共用此 PostgreSQL（含 pgvector）。改连接后需重启本地引擎。',
-              'Sessions and long-term memory share this PostgreSQL (with pgvector). Restart the engine after changing the connection.',
-            )}
-          >
-            <Input
-              value={memory.postgres?.connectionString}
-              placeholder="postgres://user@127.0.0.1:55432/xuanyu"
-              onChange={(e) =>
-                onChange({
-                  ...config,
-                  memory: {
-                    ...memory,
-                    backend: 'postgres',
-                    postgres: { ...memory.postgres, connectionString: e.target.value },
-                  },
-                })
-              }
-            />
-          </Form.Item>
-        </Form>
-      </DataBlock>
-    </PageSurface>
   );
 }
 

@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/platform-Windows%2010%2B-blue"><img src="https://img.shields.io/badge/platform-Windows%2010%2B-blue" alt="Platform"/></a>
+  <a href="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform"/></a>
   <a href="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9"><img src="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9" alt="Version"/></a>
   <a href="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6"><img src="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6" alt="Tech Stack"/></a>
   <a href="https://img.shields.io/badge/engine-15%20crates-16a34a"><img src="https://img.shields.io/badge/engine-15%20crates-16a34a" alt="Cargo Workspace"/></a>
@@ -27,10 +27,10 @@
 
 ---
 
-**XuanYu Agent (玄语)** is a **local-first** desktop AI agent workspace. Core inference, tool execution, and safety governance run in a standalone native Rust engine process, while Electron handles only the interface and device interaction. Sessions, long-term memory, and run records all live in **your own PostgreSQL** (a bundled portable instance or an existing database)—usable offline, with data never leaving your machine, while still connecting to any mainstream model and third-party capability.
+**XuanYu Agent (玄语)** is a **local-first** desktop AI agent workspace with native support for Windows, macOS, and Linux. Core inference, tool execution, and safety governance run in a standalone native Rust engine process, while Electron handles only the interface and device interaction. Sessions, long-term memory, and run records all live in the **PostgreSQL bundled with the app** (pgvector included)—usable offline, with data never leaving your machine, while still connecting to any mainstream model and third-party capability.
 
 > [!NOTE]
-> This is the `0.1.0-preview` release, published for **Windows 10+**. macOS / Linux are on the [roadmap](#roadmap).
+> This is the `0.1.0-preview` release, with native support on **Windows 10+, macOS (x64 / arm64), and Linux (x64)**.
 
 ## Table of Contents
 
@@ -76,7 +76,7 @@ Three design principles:
 
 - **Process decoupling** — the engine is a separate process that communicates with the desktop shell over JSON-RPC on stdin/stdout (see [engine_server.rs](../crates/xuanyu-cli/src/bin/engine_server.rs)). It has no dependency on the UI and can be run and tested on its own.
 - **Event-driven** — every asynchronous change inside the engine (turn deltas, tool progress, permission requests, memory updates, and so on) flows through `eventbus`, is serialized as `AppEvent`, and is pushed to the UI. The UI never polls, which makes multi-client subscriptions natural.
-- **Single source of truth for storage** — sessions, messages, memory, run records, and event logs all live in PostgreSQL, and the portable bundled instance shares one schema with existing databases.
+- **Single source of truth for storage** — sessions, messages, memory, run records, and event logs all live in the bundled PostgreSQL, sharing one schema.
 
 ## Workspace Layout
 
@@ -103,7 +103,7 @@ The engine crates at a glance:
 | `xuanyu-eventbus` | Event bus: spine / router / transformer / backpressure |
 | `xuanyu-storage` | Storage and control plane: connection pool / session tables / embedded PostgreSQL |
 | `xuanyu-protocol` | Protocol contracts: Envelope / AppEvent / AppError / DTO |
-| `xuanyu-cli` | CLI and engine-server (including the `db-external` helper command) |
+| `xuanyu-cli` | CLI and engine-server |
 | `xuanyu-desktop-host` | Desktop host bridge: exposes IPC commands that are transpiled automatically |
 | `xuanyu-agent-bridge` | Agent bridging: sub-agent workspace binding |
 | `xuanyu-agents` | Sub-agent runtime: watchdog / assess_merge |
@@ -150,20 +150,25 @@ After changing engine capabilities, run `pnpm gen:desktop-ipc` to realign the fr
 
 ## Quick Start
 
-### Use the Installer (Recommended)
+### Use a Prebuilt Package (Recommended)
 
-Go to [Releases](https://github.com/ruo-mu/XuanYu/releases) and download the latest `XuanYu Agent Setup <version>.exe`, then double-click to install. On first launch a setup wizard appears; pick a model and you're ready to go.
+Go to [Releases](https://github.com/ruo-mu/XuanYu/releases) and download the package for your platform; it works as soon as it is installed. On first launch a setup wizard appears; pick a model and you're ready to go.
 
-The installer supports two database options:
+| Platform | Installer | Portable |
+|------|------|------|
+| Windows | `nsis` | `zip` |
+| macOS | `dmg` | `zip` |
+| Linux | `deb` | `AppImage`, `tar.gz` |
 
-| Option | Description |
-|------|------|
-| **Bundled portable PostgreSQL** | Downloaded and initialized automatically (including the pgvector extension), **works out of the box**, with no extra configuration |
-| **Connect to an existing database** | Enter a connection string and test connectivity (8-second timeout built in) to reuse your existing PostgreSQL 15+ instance |
+Artifacts are named `XuanYu-Agent-<version>-<os>[-<arch>].<ext>`, for example `XuanYu-Agent-0.1.0-preview-windows-setup.exe`, `XuanYu-Agent-0.1.0-preview-mac-arm64.dmg`, or `XuanYu-Agent-0.1.0-preview-linux.AppImage`; macOS carries `arch` for its two architectures, and the other platforms may omit it. Portable builds use the same platform-standard directories as the installer, and never write data into the install directory.
+
+PostgreSQL + pgvector ship inside the artifact: fetched at build time, with zero downloads and zero extraction at install or runtime. Connection parameters are fixed by the app, so there is no connection string, host, port, or credentials to configure, and the first launch needs no network.
+
+The packages are not code-signed or notarized in this round: on macOS Gatekeeper blocks the first launch (right-click to open and allow it), and on Windows a SmartScreen "unknown publisher" prompt appears.
 
 ### Build from Source
 
-Prerequisites: Rust stable (`x86_64-pc-windows-msvc`), Node.js 20+, and pnpm.
+Prerequisites: Rust stable, Node.js 22+, and pnpm.
 
 ```bash
 pnpm install
@@ -184,7 +189,7 @@ pnpm gen:desktop-ipc   # Regenerate the IPC contract after engine capability cha
 pnpm dist
 ```
 
-This command runs three steps in order: compile the engine in release mode → build the frontend → package the NSIS installer. Artifacts land in `apps/desktop/release-dist/`.
+This command runs three steps in order: compile the engine in release mode → build the frontend → package the distribution artifacts for the current platform (Windows `nsis` / `zip`, macOS `dmg` / `zip`, Linux `AppImage` / `deb` / `tar.gz`). Artifacts land in `apps/desktop/release-dist/`.
 
 > [!IMPORTANT]
 > Re-running `pnpm install` overwrites the electron-builder NSIS template patch. The repository ships a `postinstall` hook that reapplies it automatically; if the installer misbehaves, first confirm the patch was applied.
@@ -193,22 +198,31 @@ This command runs three steps in order: compile the engine in release mode → b
 
 | Category | Requirement |
 |------|------|
-| Operating system | Windows 10 or later (current release platform) |
-| Runtime | PostgreSQL 15+ (only needed for "connect to an existing database"; portable mode installs it automatically) |
-| Development | Node.js 20+, pnpm 10+, Rust stable + MSVC target |
+| Operating system | Windows 10+, macOS (x64 / arm64), Linux (x64) |
+| Runtime | PostgreSQL 15+ and pgvector bundled with the artifact; nothing to install yourself |
+| Development | Node.js 22+, pnpm 10+, Rust stable |
 
 ## Configuration
 
-Runtime configuration and credentials are stored at `C:\Users\<username>\.xuanyu\xuanyu.json`.
+Configuration, data, cache, and logs follow each platform's standard directories:
 
-The setup wizard can be opened from two entry points: the **File** menu in the title bar, or the **Setup Wizard** button on the system settings page—you can reopen it at any time after the initial setup. When writing configuration back, existing connection strings are **merged rather than overwritten**, so reconfiguring won't lose your database connection. Validation logic lives in [config_schema.rs](../crates/xuanyu-core/src/config_schema.rs).
+| Category | Windows | macOS | Linux |
+|------|---------|-------|-------|
+| Config | `%APPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_CONFIG_HOME/xuanyu/` (default `~/.config/xuanyu/`) |
+| Data | `%LOCALAPPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_DATA_HOME/xuanyu/` (default `~/.local/share/xuanyu/`) |
+| Cache | `%LOCALAPPDATA%\XuanYu\Cache\` | `~/Library/Caches/XuanYu/` | `$XDG_CACHE_HOME/xuanyu/` (default `~/.cache/xuanyu/`) |
+| Logs | `%LOCALAPPDATA%\XuanYu\logs\` | `~/Library/Logs/XuanYu/` | `$XDG_STATE_HOME/xuanyu/logs/` (default `~/.local/state/xuanyu/logs/`) |
+
+The old `~/.xuanyu` anchor is gone.
+
+The setup wizard can be opened from two entry points: the **File** menu in the title bar, or the **Setup Wizard** button on the system settings page—you can reopen it at any time after the initial setup. The database connection uses fixed parameters built into the app; the connection string, host, port, and credentials fields have been removed. Validation logic lives in [config_schema.rs](../crates/xuanyu-core/src/config_schema.rs).
 
 ## Security Model
 
 - **Command blocklist** — blocks dangerous commands such as `rm -rf /`, `sudo rm`, `chmod 777`, and `eval` ([command_validator.rs](../crates/xuanyu-governance/src/command_validator.rs)).
 - **Git tiers** — destructive subcommands (`rebase` / `reset` / `clean` / `filter-*`, etc.) are always rejected ([git_command_policy.rs](../crates/xuanyu-governance/src/git_command_policy.rs)).
 - **Path validation** — file operations are confined to the session's isolated scope ([path_validator.rs](../crates/xuanyu-governance/src/path_validator.rs)).
-- **OS sandbox** — commands are wrapped with macOS `sandbox-exec` or Linux `bwrap` ([os_sandbox.rs](../crates/xuanyu-tools/src/os_sandbox.rs)).
+- **OS sandbox** — commands are wrapped with macOS `sandbox-exec` or Linux `bwrap`; Windows has no equivalent process wrapper, so the switch does not apply there ([os_sandbox.rs](../crates/xuanyu-tools/src/os_sandbox.rs)).
 - **Human approval** — high-risk tool calls raise `PermissionRequested`; after approval in the UI a `PermissionAnswered` flows back, and the whole flow is recorded ([turn_ledger.rs](../crates/xuanyu-governance/src/turn_ledger.rs)).
 - **Rollback safety** — workspace reverts use content-snapshot delta restoration and **never** destructive commands such as `git reset --hard`; files you edited by hand are skipped and listed as conflicts.
 
@@ -216,7 +230,6 @@ See [SECURITY.md](../.github/SECURITY.md) for how to report security issues.
 
 ## Roadmap
 
-- [ ] Multi-platform support (macOS / Linux)
 - [ ] Real-time sessions and event-driven subscriptions
 - [ ] Online distribution and auto-update for the Agent / skill marketplace
 - [ ] Richer review and permission policy templates

@@ -1,9 +1,6 @@
 /**
- * 应用数据路径解析（与参考项目 src/paths.ts 对齐）。
+ * 应用路径展示：仅在拿不到引擎返回值时用作占位，真实路径一律由引擎给出。
  */
-
-/** 全局应用数据目录名（`.xuanyu`）。 */
-export const APP_DIR_NAME = '.xuanyu';
 
 /** 全局配置文件名。 */
 export const PROJECT_CONFIG_FILE_NAME = 'xuanyu.json';
@@ -52,15 +49,37 @@ export function displayHomeDir(): string {
   return '~';
 }
 
-/** 未配置 appDataDir 时的默认应用数据目录（`{用户主目录}/.xuanyu`）。 */
-export function globalAppDir(homeDir: string = displayHomeDir()): string {
-  return `${homeDir}/${APP_DIR_NAME}`;
+/** 当前平台标识（预加载层注入）。 */
+function currentPlatform(): string {
+  return (typeof window !== 'undefined' && window.xuanyu?.platform) || '';
 }
 
-/**
- * 全局配置文件路径（固定，不可通过配置或环境变量改写）。
- * 始终为 `{用户主目录}/.xuanyu/xuanyu.json`。
- */
+/** 应用目录名：Windows / macOS 用产品名，Linux 遵循 XDG 小写惯例。 */
+export function appDirName(): string {
+  return currentPlatform() === 'linux' ? 'xuanyu' : 'XuanYu';
+}
+
+/** 配置目录占位（`$XDG_CONFIG_HOME/xuanyu`、`~/Library/Application Support/XuanYu`、`%APPDATA%\XuanYu`）。 */
+export function defaultConfigDir(homeDir: string = displayHomeDir()): string {
+  const platform = currentPlatform();
+  if (platform === 'win32') return `%APPDATA%\\${appDirName()}`;
+  if (platform === 'darwin') {
+    return `${homeDir}/Library/Application Support/${appDirName()}`;
+  }
+  return `${homeDir}/.config/${appDirName()}`;
+}
+
+/** 数据目录占位（`$XDG_DATA_HOME/xuanyu`、`~/Library/Application Support/XuanYu`、`%LOCALAPPDATA%\XuanYu`）。 */
+export function defaultDataDir(homeDir: string = displayHomeDir()): string {
+  const platform = currentPlatform();
+  if (platform === 'win32') return `%LOCALAPPDATA%\\${appDirName()}`;
+  if (platform === 'darwin') {
+    return `${homeDir}/Library/Application Support/${appDirName()}`;
+  }
+  return `${homeDir}/.local/share/${appDirName()}`;
+}
+
+/** 全局配置文件路径占位：`{配置目录}/xuanyu.json`。 */
 export function resolveGlobalConfigFile(homeDir: string = displayHomeDir()): string {
-  return `${globalAppDir(homeDir)}/${PROJECT_CONFIG_FILE_NAME}`;
+  return `${defaultConfigDir(homeDir)}/${PROJECT_CONFIG_FILE_NAME}`;
 }

@@ -121,14 +121,6 @@ export default function SystemSettingsLayout({
                     onChange={setDraft}
                   />
                 )}
-                {section === 'storage' && draft && (
-                  <ConfigSectionView
-                    section="storage"
-                    config={draft}
-                    capabilities={capabilities}
-                    onChange={setDraft}
-                  />
-                )}
                 {section === 'sandbox' && draft && (
                   <SandboxPanel config={draft} onChange={setDraft} embedded />
                 )}

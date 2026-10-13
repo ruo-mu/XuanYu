@@ -9,6 +9,7 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { useWs } from '../../App';
 import { useI18n, useLocaleText } from '../../i18n';
 import type { GatewayLogEntry, GatewayLogLevel, SystemStatusPayload } from '../../protocol';
+import { initPostgresStatus, type InitPostgresStatusResult } from '../../ipc/desktopIpc';
 import { useConfigStore } from '../../stores/configStore';
 import { DataBlock, PageSurface } from '../shell/PanelShell';
 
@@ -46,35 +47,6 @@ function displayPath(path?: string): string {
   return trimmed;
 }
 
-/** Compact postgres URL (host:port/db); pass through local paths cleaned. */
-function summarizeDbLocation(location?: string): string {
-  if (!location) return '—';
-  const trimmed = location.trim();
-  if (!/^postgres(ql)?:\/\//i.test(trimmed)) {
-    return displayPath(trimmed);
-  }
-  try {
-    const normalized = trimmed.replace(/^postgres(ql)?:\/\//i, 'http://');
-    const url = new URL(normalized);
-    const db = url.pathname.replace(/^\//, '') || '';
-    return db ? `${url.host}/${db}` : url.host || '—';
-  } catch {
-    return trimmed.length > 48 ? `${trimmed.slice(0, 45)}…` : trimmed;
-  }
-}
-
-/** Backend chip label for conversation / memory stores. */
-function backendLabel(
-  backend: string | undefined,
-  lt: (zh: string, en: string, ...args: Array<string | number>) => string,
-): string {
-  const value = (backend || '').toLowerCase();
-  if (value === 'file') return lt('本地文件', 'Local file');
-  if (value === 'postgres' || value === 'postgresql') return 'PostgreSQL';
-  if (value === 'sqlite' || value === 'local') return 'SQLite';
-  return backend || '—';
-}
-
 /** 被谁调用：系统页。做什么：拉 system.status 展示健康摘要。 */
 export default function SystemStatusPanel() {
   const { send, addHandler, connected } = useWs();
@@ -82,6 +54,7 @@ export default function SystemStatusPanel() {
   const lt = useLocaleText();
   const config = useConfigStore((s) => s.config);
   const [status, setStatus] = useState<SystemStatusPayload | null>(null);
+  const [pg, setPg] = useState<InitPostgresStatusResult | null>(null);
   const [logs, setLogs] = useState<GatewayLogEntry[]>([]);
   const [levelFilter, setLevelFilter] = useState<LevelFilter>('info');
   const [search, setSearch] = useState('');
@@ -108,9 +81,18 @@ export default function SystemStatusPanel() {
     [addHandler],
   );
 
+  const loadPgStatus = () => {
+    initPostgresStatus()
+      .then(setPg)
+      .catch(() => setPg(null));
+  };
+
   useEffect(() => {
     send('system.status', {});
     send('gateway.logs', { limit: 200 });
+    initPostgresStatus()
+      .then(setPg)
+      .catch(() => setPg(null));
   }, [send]);
 
   const filteredLogs = useMemo(() => {
@@ -142,6 +124,7 @@ export default function SystemStatusPanel() {
   const refresh = () => {
     send('system.status', {});
     send('gateway.logs', { limit: 200 });
+    loadPgStatus();
   };
 
   const toggleDetails = (id: string) => {
@@ -164,8 +147,18 @@ export default function SystemStatusPanel() {
   const storageOk =
     status?.conversation.ok !== false && (status?.memory.ok !== false || status?.memory.ok == null);
   const alertTone = errorCount ? 'is-danger' : warnCount ? 'is-warn' : 'is-ok';
-  const memoryPg = status?.memory.pgvector;
-  const memoryBackend = status?.memory.backend || config?.memory?.backend || 'postgres';
+
+  const phaseLabel = pg
+    ? pg.phase === 'ready'
+      ? lt('就绪', 'Ready')
+      : pg.phase === 'needs_init'
+        ? lt('需初始化', 'Needs init')
+        : pg.phase === 'needs_start'
+          ? lt('需启动', 'Needs start')
+          : pg.phase === 'needs_pgvector'
+            ? lt('需安装 pgvector', 'Needs pgvector')
+            : lt('缺少程序', 'Missing program')
+    : '—';
 
   return (
     <div className="xy-settings-stack xy-runtime-status">
@@ -226,46 +219,6 @@ export default function SystemStatusPanel() {
               </dd>
             </div>
             <div>
-              <dt>{lt('会话存储', 'Sessions')}</dt>
-              <dd>
-                <code>{summarizeDbLocation(status?.conversation.location)}</code>
-                <span className="xy-runtime-fact-tags">
-                  <span className="xy-runtime-chip">
-                    {backendLabel(status?.conversation.backend, lt)}
-                  </span>
-                  {typeof status?.conversation.pgvector === 'boolean' ? (
-                    <span
-                      className={`xy-runtime-chip${
-                        status.conversation.pgvector ? ' is-ok' : ' is-warn'
-                      }`}
-                    >
-                      pgvector{' '}
-                      {status.conversation.pgvector ? lt('可用', 'on') : lt('未就绪', 'off')}
-                    </span>
-                  ) : null}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt>{lt('记忆库', 'Memory DB')}</dt>
-              <dd>
-                <code>{summarizeDbLocation(status?.memory.location)}</code>
-                <span className="xy-runtime-fact-tags">
-                  <span className="xy-runtime-chip">{backendLabel(memoryBackend, lt)}</span>
-                  {typeof memoryPg === 'boolean' ? (
-                    <span className={`xy-runtime-chip${memoryPg ? ' is-ok' : ' is-warn'}`}>
-                      pgvector {memoryPg ? lt('可用', 'on') : lt('未就绪', 'off')}
-                    </span>
-                  ) : null}
-                  {status?.memory.postgresConfigured && status?.memory.ok === false ? (
-                    <span className="xy-runtime-chip is-warn">
-                      {lt('未接入', 'not attached')}
-                    </span>
-                  ) : null}
-                </span>
-              </dd>
-            </div>
-            <div>
               <dt>{lt('运行时', 'Runtime')}</dt>
               <dd>
                 {status?.runtime
@@ -277,6 +230,56 @@ export default function SystemStatusPanel() {
           {status?.conversation.error ? (
             <Text type="danger" className="xy-settings-hint">
               {status.conversation.error}
+            </Text>
+          ) : null}
+        </DataBlock>
+      </PageSurface>
+
+      <PageSurface>
+        <DataBlock title={lt('内置数据库', 'Embedded database')}>
+          {pg ? (
+            <dl className="xy-runtime-facts">
+              <div>
+                <dt>{lt('状态', 'State')}</dt>
+                <dd>
+                  <span className={`xy-runtime-chip${pg.phase === 'ready' ? ' is-ok' : ' is-warn'}`}>
+                    {phaseLabel}
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt>{lt('程序', 'Program')}</dt>
+                <dd>
+                  {pg.program ? lt('就绪', 'Ready') : lt('缺失', 'Missing')}
+                  <span className="xy-runtime-fact-tags">
+                    <code>{displayPath(pg.programDir)}</code>
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt>{lt('数据', 'Data')}</dt>
+                <dd>
+                  {pg.installed ? lt('已初始化', 'Initialized') : lt('未初始化', 'Not initialized')}
+                  <span className="xy-runtime-fact-tags">
+                    <code>{displayPath(pg.dataDir)}</code>
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt>{lt('服务', 'Service')}</dt>
+                <dd>{pg.running ? lt('运行中', 'Running') : lt('未运行', 'Stopped')}</dd>
+              </div>
+              <div>
+                <dt>pgvector</dt>
+                <dd>{pg.pgvector ? lt('可用', 'on') : lt('未就绪', 'off')}</dd>
+              </div>
+            </dl>
+          ) : (
+            <Text type="secondary">{lt('正在读取内置数据库状态…', 'Loading embedded database status…')}</Text>
+          )}
+          {pg?.error ? (
+            <Text type="danger" className="xy-settings-hint">
+              {pg.error}
             </Text>
           ) : null}
         </DataBlock>

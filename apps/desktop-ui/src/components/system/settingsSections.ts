@@ -7,7 +7,6 @@ export const SETTINGS_SECTIONS = [
   'permission',
   'sandbox',
   'context',
-  'storage',
   'status',
 ] as const;
 
@@ -81,20 +80,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         fallback: '上下文与记忆',
         descKey: 'settings.desc.context',
         descFallback: '压缩与记忆注入频率',
-      },
-    ],
-  },
-  {
-    id: 'data',
-    labelKey: 'settings.group.data',
-    fallback: '数据',
-    items: [
-      {
-        id: 'storage',
-        labelKey: 'settings.nav.storage',
-        fallback: '存储',
-        descKey: 'settings.desc.storage',
-        descFallback: 'PostgreSQL 连接（会话与长期记忆）',
       },
     ],
   },

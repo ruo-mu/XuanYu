@@ -58,7 +58,7 @@ export type WindowCommand =
   | 'toggleFullscreen'
   | 'reload';
 
-export type TerminalShellKind = 'powershell' | 'cmd' | 'bash';
+export type TerminalShellKind = 'powershell' | 'cmd' | 'shell';
 
 export type TerminalCreateInput = {
   cwd?: string;

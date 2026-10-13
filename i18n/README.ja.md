@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/platform-Windows%2010%2B-blue"><img src="https://img.shields.io/badge/platform-Windows%2010%2B-blue" alt="Platform"/></a>
+  <a href="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform"/></a>
   <a href="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9"><img src="https://img.shields.io/badge/version-0.1.0--preview-0ea5e9" alt="Version"/></a>
   <a href="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6"><img src="https://img.shields.io/badge/tech-Electron%20%2B%20Rust%20%2B%20PostgreSQL-8b5cf6" alt="Tech Stack"/></a>
   <a href="https://img.shields.io/badge/engine-15%20crates-16a34a"><img src="https://img.shields.io/badge/engine-15%20crates-16a34a" alt="Cargo Workspace"/></a>
@@ -27,10 +27,10 @@
 
 ---
 
-**玄語（XuanYu Agent）** 是一款**ローカルファースト**のデスクトップ AI エージェントワークスペースです。中核となる推論・ツール実行・安全ガバナンスは独立したネイティブ Rust エンジンプロセス上で動作し、Electron は UI とデバイス連携のみを担います。セッション・長期記憶・実行ログはすべて**あなた自身の PostgreSQL**（内蔵のポータブル DB または既存の DB）に保存されます——オフラインで利用でき、データは本機から出ません。同時に、任意の主要モデルやサードパーティの機能を接続できます。
+**玄語（XuanYu Agent）** は **ローカルファースト**のデスクトップ AI エージェントワークスペースで、Windows・macOS・Linux にネイティブ対応します。中核となる推論・ツール実行・安全ガバナンスは独立したネイティブ Rust エンジンプロセス上で動作し、Electron は UI とデバイス連携のみを担います。セッション・長期記憶・実行ログはすべて**成果物に同梱された PostgreSQL**（pgvector 込み）に保存されます——オフラインで利用でき、データは本機から出ません。同時に、任意の主要モデルやサードパーティの機能を接続できます。
 
 > [!NOTE]
-> 現在は `0.1.0-preview` プレビュー版で、公開プラットフォームは **Windows 10+** です。macOS / Linux は[ロードマップ](#ロードマップ)に記載しています。
+> 現在は `0.1.0-preview` プレビュー版で、**Windows 10+ / macOS（x64・arm64）/ Linux（x64）** にネイティブ対応しています。
 
 ## 目次
 
@@ -76,7 +76,7 @@ PostgreSQL + pgvector
 
 - **プロセス分離** — エンジンは独立プロセスで、stdin/stdout 上の JSON-RPC を介してデスクトップシェルと双方向通信します（[engine_server.rs](../crates/xuanyu-cli/src/bin/engine_server.rs) を参照）。UI に依存せず、単独で実行・テストできます。
 - **イベント駆動** — エンジン内のあらゆる非同期変化（ターン差分、ツール進捗、権限リクエスト、記憶更新など）は `eventbus` を経由し、`AppEvent` にシリアライズされて UI へ主動的にプッシュされます。UI はポーリングせず、マルチクライアント購読に自然に対応します。
-- **ストレージの単一情報源** — セッション、メッセージ、記憶、実行ログ、イベントログはすべて PostgreSQL に保存され、内蔵ポータブル DB と既存 DB は同一のスキーマを使用します。
+- **ストレージの単一情報源** — セッション、メッセージ、記憶、実行ログ、イベントログはすべて同梱の PostgreSQL に保存され、同一のスキーマを使用します。
 
 ## ワークスペース構成
 
@@ -103,7 +103,7 @@ scripts/              IPC コード生成、パッケージングとスモーク
 | `xuanyu-eventbus` | イベントバス：spine / router / transformer / backpressure |
 | `xuanyu-storage` | ストレージとコントロールプレーン：コネクションプール / セッションテーブル / 組み込み PostgreSQL |
 | `xuanyu-protocol` | プロトコル契約：Envelope / AppEvent / AppError / DTO |
-| `xuanyu-cli` | CLI と engine-server（`db-external` 補助コマンドを含む） |
+| `xuanyu-cli` | CLI と engine-server |
 | `xuanyu-desktop-host` | デスクトップホストブリッジ：自動転写可能な IPC コマンドを公開 |
 | `xuanyu-agent-bridge` | Agent ブリッジ：サブ Agent ワークスペースのバインディング |
 | `xuanyu-agents` | サブ Agent ランタイム：watchdog / assess_merge |
@@ -152,18 +152,23 @@ scripts/              IPC コード生成、パッケージングとスモーク
 
 ### そのまま使う（推奨）
 
-[Releases](https://github.com/ruo-mu/XuanYu/releases) から最新の `XuanYu Agent Setup <バージョン>.exe` をダウンロードし、ダブルクリックでインストールします。初回起動時はセットアップウィザードが表示され、モデルを選択するだけで利用を開始できます。
+[Releases](https://github.com/ruo-mu/XuanYu/releases) からお使いのプラットフォーム向けの成果物をダウンロードすれば、インストール後すぐに使えます。初回起動時はセットアップウィザードが表示され、モデルを選択するだけで利用を開始できます。
 
-インストーラーは 2 種類のデータベース方式をサポートします：
+| プラットフォーム | インストーラー | ポータブル |
+|------|------|------|
+| Windows | `nsis` | `zip` |
+| macOS | `dmg` | `zip` |
+| Linux | `deb` | `AppImage`、`tar.gz` |
 
-| 方式 | 説明 |
-|------|------|
-| **内蔵ポータブル PostgreSQL** | 自動でダウンロード・初期化（pgvector 拡張を含む）。**すぐに使え**、追加設定は一切不要 |
-| **既存のデータベースに接続** | 接続文字列を入力して疎通確認（内蔵 8 秒タイムアウト）。既存の PostgreSQL 15+ インスタンスを再利用 |
+成果物は `XuanYu-Agent-<バージョン>-<os>[-<arch>].<ext>` の命名規則に従います（例：`XuanYu-Agent-0.1.0-preview-windows-setup.exe`、`XuanYu-Agent-0.1.0-preview-mac-arm64.dmg`、`XuanYu-Agent-0.1.0-preview-linux.AppImage`）。macOS は 2 アーキテクチャのため `arch` を付け、その他のプラットフォームでは省略できます。ポータブル形態もインストーラー版と同じプラットフォーム標準ディレクトリを使い、データをインストール先には書き込みません。
+
+PostgreSQL + pgvector は成果物に同梱されます。ビルド時に取得し、インストール時も実行時もダウンロード・展開は行いません。接続パラメータはアプリ側で固定されるため、接続文字列・ホスト・ポート・認証情報の設定は不要で、初回起動にネットワークも要しません。
+
+インストーラーは今回コード署名・公証を行っていません。macOS では初回起動が Gatekeeper にブロックされ（右クリックから「開く」で許可）、Windows では SmartScreen の「不明な発行元」警告が表示されます。
 
 ### ソースから開発する
 
-前提：Rust stable（`x86_64-pc-windows-msvc`）、Node.js 20+、pnpm。
+前提：Rust stable、Node.js 22+、pnpm。
 
 ```bash
 pnpm install
@@ -184,7 +189,7 @@ pnpm gen:desktop-ipc   # エンジン能力の変更後に IPC 契約を再生�
 pnpm dist
 ```
 
-このコマンドは順に、release モードでエンジンをコンパイル → フロントエンドをビルド → NSIS インストーラーをパッケージング、を実行します。成果物は `apps/desktop/release-dist/` に出力されます。
+このコマンドは順に、release モードでエンジンをコンパイル → フロントエンドをビルド → 現在のプラットフォーム向けの配布成果物（Windows `nsis` / `zip`、macOS `dmg` / `zip`、Linux `AppImage` / `deb` / `tar.gz`）をパッケージング、を実行します。成果物は `apps/desktop/release-dist/` に出力されます。
 
 > [!IMPORTANT]
 > `pnpm install` を再実行すると、electron-builder の NSIS テンプレートパッチが上書きされます。リポジトリには `postinstall` フックが設定済みで自動的に再適用されますが、インストーラーに異常がある場合はまずパッチが有効かを確認してください。
@@ -193,22 +198,31 @@ pnpm dist
 
 | カテゴリ | 要件 |
 |------|------|
-| オペレーティングシステム | Windows 10 以上（現在の公開プラットフォーム） |
-| ランタイム | PostgreSQL 15+（「既存の DB に接続」の場合のみ必要。ポータブルモードでは自動インストール） |
-| 開発 | Node.js 20+、pnpm 10+、Rust stable + MSVC target |
+| オペレーティングシステム | Windows 10+ / macOS（x64・arm64）/ Linux（x64） |
+| ランタイム | PostgreSQL 15+ と pgvector を成果物に同梱。利用者側でのインストールは不要 |
+| 開発 | Node.js 22+、pnpm 10+、Rust stable |
 
 ## 設定
 
-実行時設定と認証情報は `C:\Users\<ユーザー名>\.xuanyu\xuanyu.json` に保存されます。
+設定・データ・キャッシュ・ログは各プラットフォームの標準ディレクトリに従います：
 
-セットアップウィザードへは 2 つの入口からアクセスできます：タイトルバーの**「ファイル」メニュー**、またはシステム設定ページの**「セットアップウィザード」ボタン**です——初回設定後もいつでも再入場できます。設定を書き戻す際は、既存の接続文字列を**上書きではなくマージ**するため、再設定でデータベース接続が失われることはありません。設定の検証ロジックは [config_schema.rs](../crates/xuanyu-core/src/config_schema.rs) を参照。
+| 種別 | Windows | macOS | Linux |
+|------|---------|-------|-------|
+| 設定 | `%APPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_CONFIG_HOME/xuanyu/`（既定 `~/.config/xuanyu/`） |
+| データ | `%LOCALAPPDATA%\XuanYu\` | `~/Library/Application Support/XuanYu/` | `$XDG_DATA_HOME/xuanyu/`（既定 `~/.local/share/xuanyu/`） |
+| キャッシュ | `%LOCALAPPDATA%\XuanYu\Cache\` | `~/Library/Caches/XuanYu/` | `$XDG_CACHE_HOME/xuanyu/`（既定 `~/.cache/xuanyu/`） |
+| ログ | `%LOCALAPPDATA%\XuanYu\logs\` | `~/Library/Logs/XuanYu/` | `$XDG_STATE_HOME/xuanyu/logs/`（既定 `~/.local/state/xuanyu/logs/`） |
+
+旧アンカー `~/.xuanyu` は廃止されました。
+
+セットアップウィザードへは 2 つの入口からアクセスできます：タイトルバーの**「ファイル」メニュー**、またはシステム設定ページの**「セットアップウィザード」ボタン**です——初回設定後もいつでも再入場できます。データベース接続はアプリに組み込まれた固定パラメータを用いるため、接続文字列・ホスト・ポート・認証情報などの設定項目はすべて削除されています。設定の検証ロジックは [config_schema.rs](../crates/xuanyu-core/src/config_schema.rs) を参照。
 
 ## セキュリティモデル
 
 - **コマンドブラックリスト** — `rm -rf /`、`sudo rm`、`chmod 777`、`eval` などの危険なコマンドを遮断します（[command_validator.rs](../crates/xuanyu-governance/src/command_validator.rs)）。
 - **git レベル分け** — 破壊的コマンド（`rebase` / `reset` / `clean` / `filter-*` など）は一律で実行を拒否します（[git_command_policy.rs](../crates/xuanyu-governance/src/git_command_policy.rs)）。
 - **パス検証** — ファイル操作をセッション分離スコープ内に制限します（[path_validator.rs](../crates/xuanyu-governance/src/path_validator.rs)）。
-- **OS サンドボックス** — macOS `sandbox-exec`、Linux `bwrap` でコマンドをラップします（[os_sandbox.rs](../crates/xuanyu-tools/src/os_sandbox.rs)）。
+- **OS サンドボックス** — macOS は `sandbox-exec`、Linux は `bwrap` でコマンドをラップします。Windows には同等のプロセスラッパーがないため、このスイッチは Windows では適用されません（[os_sandbox.rs](../crates/xuanyu-tools/src/os_sandbox.rs)）。
 - **人手による承認** — 高リスクなツール呼び出しは `PermissionRequested` をトリガーし、UI のダイアログで承認された後に `PermissionAnswered` で復帰、全行程を記帳します（[turn_ledger.rs](../crates/xuanyu-governance/src/turn_ledger.rs)）。
 - **ロールバックの安全性** — ワークスペースの巻き戻しは内容スナップショットの差分復元を採用し、`git reset --hard` などの破壊的コマンドを**決して使用しません**。ユーザーが手動で変更したファイルは復元をスキップし、コンフリクト一覧に記載されます。
 
@@ -216,7 +230,6 @@ pnpm dist
 
 ## ロードマップ
 
-- [ ] マルチプラットフォーム対応（macOS / Linux）
 - [ ] リアルタイムセッションとイベント駆動サブスクリプション
 - [ ] Agent / スキルマーケットのオンライン配信と自動更新
 - [ ] より充実したレビューと権限ポリシーのテンプレート

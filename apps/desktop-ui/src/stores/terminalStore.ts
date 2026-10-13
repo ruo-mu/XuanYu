@@ -4,7 +4,7 @@
 
 import { create } from 'zustand';
 
-export type TerminalShellKind = 'powershell' | 'cmd' | 'bash';
+export type TerminalShellKind = 'powershell' | 'cmd' | 'shell';
 
 export type TerminalTab = {
   id: string;

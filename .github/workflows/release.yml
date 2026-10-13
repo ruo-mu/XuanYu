@@ -1,44 +1,81 @@
 name: Release
 
-# 规范化发布流程：在 main/master 上打 git tag（形如 v0.1.0）即自动
-# 编译引擎 + 前端，产出 NSIS 安装包，并创建 GitHub Release 草稿。
+# 推 v* 标签触发三端（win / mac 双架构 / linux）打包，产物汇总为 Release 草稿。
+# 本轮不签名、不公证，故显式关闭证书自动发现。
 on:
   push:
     tags:
       - "v*"
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: x64
+            artifact: windows-x64
+            files: |
+              apps/desktop/release-dist/*.exe
+              apps/desktop/release-dist/*.zip
+          # macos-latest 是 arm64 运行器，x64 产物由 Electron 侧交叉打包
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            arch: arm64
+            artifact: mac-arm64
+            files: |
+              apps/desktop/release-dist/*.dmg
+              apps/desktop/release-dist/*.zip
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            arch: x64
+            artifact: mac-x64
+            files: |
+              apps/desktop/release-dist/*.dmg
+              apps/desktop/release-dist/*.zip
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            arch: x64
+            artifact: linux-x64
+            files: |
+              apps/desktop/release-dist/*.AppImage
+              apps/desktop/release-dist/*.deb
+              apps/desktop/release-dist/*.tar.gz
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@1.96.1
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
 
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
 
-      - name: Build & package installer
-        run: pnpm --filter @xuanyu/desktop dist
+      - name: Build & package
+        run: pnpm --filter @xuanyu/desktop dist -- --${{ matrix.arch }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
 
-      - name: Upload installer artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xuanyu-agent-setup
-          path: apps/desktop/release-dist/*.exe
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
           if-no-files-found: error
 
   publish:
-    needs: build-windows
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,12 +84,18 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: xuanyu-agent-setup
-          path: dist/
+          path: dist
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.tar.gz
           generate_release_notes: true
           draft: true

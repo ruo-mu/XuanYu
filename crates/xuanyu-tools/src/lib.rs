@@ -10908,14 +10908,11 @@ fn nearby_config_roots(project_dir: Option<&Path>) -> Vec<PathBuf> {
 
 fn looks_like_risky_exec(command: &str) -> bool {
     let lower = command.to_ascii_lowercase();
-    [
+    const CROSS_PLATFORM: &[&str] = &[
         "rm -rf",
         "rm -r ",
-        "del /s",
-        "format ",
         "mkfs",
         "dd if=",
-        "shutdown",
         "reboot",
         "drop database",
         "truncate table",
@@ -10925,9 +10922,15 @@ fn looks_like_risky_exec(command: &str) -> bool {
         "cargo publish",
         "kubectl delete",
         "terraform destroy",
-    ]
-    .iter()
-    .any(|needle| lower.contains(needle))
+    ];
+    #[cfg(windows)]
+    const PLATFORM: &[&str] = &["del /s", "format ", "shutdown"];
+    #[cfg(unix)]
+    const PLATFORM: &[&str] = &["mkfs.", "of=/dev/", "chmod -R 777 /", "mv /*"];
+    CROSS_PLATFORM
+        .iter()
+        .chain(PLATFORM.iter())
+        .any(|needle| lower.contains(needle))
 }
 
 fn spawn_output_reader<R>(mut reader: R, process: Arc<Mutex<BackgroundProcess>>)
@@ -10992,14 +10995,13 @@ fn spawn_waiter(process: Arc<Mutex<BackgroundProcess>>) {
 
 fn terminate_child(proc: &BackgroundProcess) {
     if let Some(pid) = proc.pid {
-        if cfg!(windows) {
-            let _ = Command::new("taskkill")
-                .args(["/pid", &pid.to_string(), "/T", "/F"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
-            return;
-        }
+        #[cfg(windows)]
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+        #[cfg(unix)]
         let _ = Command::new("kill")
             .args(["-TERM", &pid.to_string()])
             .stdout(Stdio::null())

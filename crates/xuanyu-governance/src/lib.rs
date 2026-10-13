@@ -3,7 +3,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    fs,
     path::{Path, PathBuf},
     sync::OnceLock,
 };
@@ -1936,16 +1936,9 @@ const MAX_SENSITIVE_SCAN_BYTES: u64 = 512 * 1024;
 const PROJECT_CONFIG_FILE_NAME: &str = "xuanyu.json";
 
 pub fn scan_sensitive_files(project_dir: impl AsRef<Path>) -> SensitiveScanResult {
-    scan_sensitive_files_with_home(project_dir, default_home_dir().as_deref())
-}
-
-pub fn scan_sensitive_files_with_home(
-    project_dir: impl AsRef<Path>,
-    home_dir: Option<&Path>,
-) -> SensitiveScanResult {
     let project_dir = project_dir.as_ref();
     let mut findings = Vec::new();
-    for file_path in sensitive_candidates(project_dir, home_dir) {
+    for file_path in sensitive_candidates(project_dir) {
         let Some(content) = read_small_text_file(&file_path) else {
             continue;
         };
@@ -1983,11 +1976,9 @@ pub fn format_sensitive_scan_warnings(result: &SensitiveScanResult) -> Vec<Strin
     warnings
 }
 
-fn sensitive_candidates(project_dir: &Path, home_dir: Option<&Path>) -> Vec<PathBuf> {
+fn sensitive_candidates(project_dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    if let Some(home_dir) = home_dir {
-        files.push(home_dir.join(".xuanyu").join(PROJECT_CONFIG_FILE_NAME));
-    }
+    files.push(xuanyu_storage::resolve_global_config_file());
     files.push(project_dir.join(".env"));
     files.push(project_dir.join(".env.local"));
     if let Ok(entries) = fs::read_dir(project_dir) {
@@ -2088,12 +2079,6 @@ fn is_placeholder(value: &str) -> bool {
             | "<your-api-key>"
             | "${xy_api_key}"
     )
-}
-
-fn default_home_dir() -> Option<PathBuf> {
-    env::var_os("USERPROFILE")
-        .or_else(|| env::var_os("HOME"))
-        .map(PathBuf::from)
 }
 
 fn path_to_string(path: &Path) -> String {
