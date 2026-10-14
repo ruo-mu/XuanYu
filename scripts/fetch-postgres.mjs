@@ -10,7 +10,10 @@
 // 落位：
 //   默认            -> target/engine/<arch>/pg   打包用，electron-builder extraResources 读取
 //   --profile=<p>   -> target/<p>/pg             dev 用，与 cargo debug/release 产物同级
+//   --dist          -> pg-dist/<平台>-<架构>/pg   三端归档分类落位（仓库根，已 gitignore）
 //   --arch=<arch>   显式指定目标架构，缺省按 CARGO_BUILD_TARGET / 本机架构解析
+//   --platform=<p>  显式指定目标平台（win32 / darwin / linux），缺省为本机；
+//                   允许在任一平台上跨平台取件（例如在 Windows 上预取三端归档）
 // 归档缓存在 target/pg-cache/（文件名含来源 sha256），命中即复用并校验；pg 目录齐备时整体跳过。
 import { createHash } from 'node:crypto'
 import {
@@ -82,15 +85,40 @@ if (profile && profile !== 'debug' && profile !== 'release') {
   throw new Error(`Invalid --profile '${profile}' (expected debug or release)`)
 }
 
+// 目标平台：缺省为本机；别名归一，取件来源与校验都按它决定。
+const PLATFORM_ALIASES = {
+  win32: 'win32',
+  windows: 'win32',
+  win: 'win32',
+  darwin: 'darwin',
+  macos: 'darwin',
+  mac: 'darwin',
+  osx: 'darwin',
+  linux: 'linux',
+}
+const platformArg = option('--platform')
+if (platformArg && !PLATFORM_ALIASES[platformArg.toLowerCase()]) {
+  throw new Error(`Invalid --platform '${platformArg}' (expected win32, darwin or linux)`)
+}
+const targetPlatform = PLATFORM_ALIASES[platformArg?.toLowerCase()] ?? process.platform
+const PLATFORM_LABEL = { win32: 'windows', darwin: 'mac', linux: 'linux' }
+
 const rustTarget = process.env.CARGO_BUILD_TARGET?.trim() || null
 const engineArch = option('--arch') ?? (rustTarget ? ARCH_BY_TARGET[rustTarget] : process.arch)
 if (!engineArch) {
   throw new Error(`Unknown rust target for PostgreSQL staging: ${rustTarget}`)
 }
 
-const outDir = profile
-  ? path.join(repoRoot, 'target', profile, 'pg')
-  : path.join(repoRoot, 'target', 'engine', engineArch, 'pg')
+const dist = args.includes('--dist')
+if (dist && profile) {
+  throw new Error('--dist and --profile are mutually exclusive')
+}
+
+const outDir = dist
+  ? path.join(repoRoot, 'pg-dist', `${PLATFORM_LABEL[targetPlatform]}-${engineArch}`, 'pg')
+  : profile
+    ? path.join(repoRoot, 'target', profile, 'pg')
+    : path.join(repoRoot, 'target', 'engine', engineArch, 'pg')
 
 async function stageWindows() {
   const sources = [
@@ -126,7 +154,7 @@ async function stageWindows() {
 }
 
 async function stageUnix() {
-  const subdir = condaSubdir(engineArch)
+  const subdir = condaSubdir(targetPlatform, engineArch)
   const resolved = await resolveCondaSources(subdir)
   const sources = [...resolved.roots.values()].map((pkg) => ({
     label: `${pkg.name} (conda-forge ${pkg.subdir})`,
@@ -158,13 +186,13 @@ async function stageUnix() {
   }
 }
 
-function condaSubdir(arch) {
-  if (process.platform === 'darwin') return arch === 'arm64' ? 'osx-arm64' : 'osx-64'
+function condaSubdir(platform, arch) {
+  if (platform === 'darwin') return arch === 'arm64' ? 'osx-arm64' : 'osx-64'
   return arch === 'arm64' ? 'linux-aarch64' : 'linux-64'
 }
 
 function cleanWorkDir() {
-  const work = path.join(repoRoot, 'target', `pg-work-${engineArch}`)
+  const work = path.join(repoRoot, 'target', `pg-work-${targetPlatform}-${engineArch}`)
   rmSync(work, { recursive: true, force: true })
   mkdirSync(work, { recursive: true })
   return work
@@ -409,10 +437,15 @@ function latestEntry(entries) {
   )
 }
 
+// 统一优先 .conda（三端都由本脚本原生解析，取件结果与宿主平台无关），
+// 没有 .conda 构建时回退 .tar.bz2；同版本内取最大构建号（新构建修正过打包问题）。
 function pickArtifact(entries) {
-  return (
-    entries.find((entry) => entry.filename.endsWith('.tar.bz2')) ??
-    entries.find((entry) => entry.filename.endsWith('.conda'))
+  const pool = entries.filter((entry) => entry.filename.endsWith('.conda'))
+  const source = pool.length
+    ? pool
+    : entries.filter((entry) => entry.filename.endsWith('.tar.bz2'))
+  return source.reduce((best, entry) =>
+    (entry.build_number ?? 0) > (best.build_number ?? 0) ? entry : best,
   )
 }
 
@@ -460,27 +493,89 @@ function extractConda(archive, destDir) {
 }
 
 // 极简 ZIP 读取：定位中央目录，返回首个满足 predicate 的条目名与解压后内容。
+// 兼容 ZIP64：部分新版 conda 打包工具产出 ZIP64 归档，中央目录与 EOCD 的
+// 32 位字段为 0xFFFFFFFF 哨兵，真实值在 ZIP64 扩展字段与 ZIP64 EOCD 记录里。
 function readZipEntry(buffer, predicate) {
-  const eocd = findEndOfCentralDirectory(buffer)
-  const count = buffer.readUInt16LE(eocd + 10)
-  let offset = buffer.readUInt32LE(eocd + 16)
+  const { count, cdOffset } = zipCentralDirectory(buffer)
+  let offset = cdOffset
   for (let index = 0; index < count; index += 1) {
     if (buffer.readUInt32LE(offset) !== 0x02014b50) {
       throw new Error('Corrupt ZIP central directory')
     }
     const method = buffer.readUInt16LE(offset + 10)
-    const compressedSize = buffer.readUInt32LE(offset + 20)
+    let compressedSize = buffer.readUInt32LE(offset + 20)
     const nameLength = buffer.readUInt16LE(offset + 28)
     const extraLength = buffer.readUInt16LE(offset + 30)
     const commentLength = buffer.readUInt16LE(offset + 32)
-    const localOffset = buffer.readUInt32LE(offset + 42)
+    let localOffset = buffer.readUInt32LE(offset + 42)
     const name = buffer.toString('utf8', offset + 46, offset + 46 + nameLength)
+    if (compressedSize === 0xffffffff || localOffset === 0xffffffff) {
+      const values = zip64ExtraValues(
+        buffer,
+        offset + 46 + nameLength,
+        extraLength,
+        buffer.readUInt32LE(offset + 24) === 0xffffffff,
+        compressedSize === 0xffffffff,
+        localOffset === 0xffffffff,
+      )
+      if (compressedSize === 0xffffffff) compressedSize = Number(values.compressedSize)
+      if (localOffset === 0xffffffff) localOffset = Number(values.localOffset)
+    }
     if (predicate(name)) {
       return { name, data: readZipEntryData(buffer, localOffset, method, compressedSize) }
     }
     offset += 46 + nameLength + extraLength + commentLength
   }
   return null
+}
+
+// 从 EOCD 解出条目数与中央目录偏移；任一字段为哨兵值时跟进 ZIP64 定位器与记录。
+function zipCentralDirectory(buffer) {
+  const eocd = findEndOfCentralDirectory(buffer)
+  let count = buffer.readUInt16LE(eocd + 10)
+  let cdOffset = buffer.readUInt32LE(eocd + 16)
+  if (count === 0xffff || cdOffset === 0xffffffff) {
+    const locator = eocd - 20
+    if (locator < 0 || buffer.readUInt32LE(locator) !== 0x07064b50) {
+      throw new Error('ZIP64 end-of-central-directory locator missing')
+    }
+    const zip64Eocd = Number(buffer.readBigUInt64LE(locator + 8))
+    if (buffer.readUInt32LE(zip64Eocd) !== 0x06064b50) {
+      throw new Error('Corrupt ZIP64 end-of-central-directory record')
+    }
+    count = Number(buffer.readBigUInt64LE(zip64Eocd + 32))
+    cdOffset = Number(buffer.readBigUInt64LE(zip64Eocd + 48))
+  }
+  return { count, cdOffset }
+}
+
+// 解析中央目录条目的 ZIP64 扩展字段（id 0x0001）。字段顺序固定为
+// 未压缩尺寸、压缩尺寸、本地头偏移、磁盘号，且只包含哨兵对应的项。
+function zip64ExtraValues(buffer, extraOffset, extraLength, wantUncompressed, wantCompressed, wantOffset) {
+  const end = extraOffset + extraLength
+  let offset = extraOffset
+  while (offset + 4 <= end) {
+    const id = buffer.readUInt16LE(offset)
+    const size = buffer.readUInt16LE(offset + 2)
+    if (id === 0x0001) {
+      let cursor = offset + 4
+      const values = {}
+      if (wantUncompressed) {
+        values.uncompressedSize = buffer.readBigUInt64LE(cursor)
+        cursor += 8
+      }
+      if (wantCompressed) {
+        values.compressedSize = buffer.readBigUInt64LE(cursor)
+        cursor += 8
+      }
+      if (wantOffset) {
+        values.localOffset = buffer.readBigUInt64LE(cursor)
+      }
+      return values
+    }
+    offset += 4 + size
+  }
+  throw new Error('ZIP64 extra field missing')
 }
 
 function readZipEntryData(buffer, localOffset, method, compressedSize) {
@@ -505,9 +600,12 @@ function findEndOfCentralDirectory(buffer) {
 }
 
 // 极简 USTAR/PAX tar 解包：覆盖普通文件 / 目录 / 符号链接 / PAX 与 GNU 长名扩展头。
+// 符号链接两段式落地：先收集，全部条目解完后统一建链——链接与目标的出现顺序不受限；
+// 平台不允许建链时（如 Windows 无特权）降级为复制目标文件，保证解出的树完整可用。
 function extractTarTo(buffer, destDir) {
   mkdirSync(destDir, { recursive: true })
   const resolvedDest = path.resolve(destDir)
+  const pendingLinks = []
   let offset = 0
   let longName = null
   let longLink = null
@@ -560,11 +658,7 @@ function extractTarTo(buffer, destDir) {
     } else if (typeflag === '2') {
       mkdirSync(path.dirname(full), { recursive: true })
       rmSync(full, { force: true })
-      try {
-        symlinkSync(link, full)
-      } catch {
-        // 少数平台不允许创建符号链接；conda 的 Unix 包才带符号链接，忽略即可。
-      }
+      pendingLinks.push({ link, full })
     } else if (typeflag === '0' || typeflag === '\0' || typeflag === '7') {
       mkdirSync(path.dirname(full), { recursive: true })
       const fileMode = name.startsWith('bin/') ? 0o755 : mode || 0o644
@@ -572,6 +666,17 @@ function extractTarTo(buffer, destDir) {
       chmodSync(full, fileMode)
     }
     offset = dataStart + tarPadding(size)
+  }
+
+  for (const { link, full } of pendingLinks) {
+    try {
+      symlinkSync(link, full)
+    } catch {
+      const resolvedTarget = path.resolve(path.dirname(full), link)
+      if (existsSync(resolvedTarget) && statSync(resolvedTarget).isFile()) {
+        copyFileSync(resolvedTarget, full)
+      }
+    }
   }
 }
 
@@ -633,8 +738,16 @@ function mergeTree(sourceDir, targetDir) {
       mkdirSync(to, { recursive: true })
       mergeTree(from, to)
     } else if (entry.isSymbolicLink()) {
+      const linkTarget = readlinkSync(from)
       rmSync(to, { force: true })
-      symlinkSync(readlinkSync(from), to)
+      try {
+        symlinkSync(linkTarget, to)
+      } catch {
+        const resolvedTarget = path.resolve(path.dirname(from), linkTarget)
+        if (existsSync(resolvedTarget) && statSync(resolvedTarget).isFile()) {
+          copyFileSync(resolvedTarget, to)
+        }
+      }
     } else if (entry.isFile()) {
       mkdirSync(path.dirname(to), { recursive: true })
       copyFileSync(from, to)
@@ -710,7 +823,7 @@ function stripBin(pgDir) {
 }
 
 function verifyPgDir(dir) {
-  const suffix = process.platform === 'win32' ? '.exe' : ''
+  const suffix = targetPlatform === 'win32' ? '.exe' : ''
   for (const name of ['postgres', 'initdb', 'pg_ctl', 'psql']) {
     if (!existsSync(path.join(dir, 'bin', `${name}${suffix}`))) {
       throw new Error(`PostgreSQL program directory is incomplete: missing bin/${name}${suffix}`)
@@ -762,7 +875,7 @@ try {
   if (isPgDirComplete(outDir)) {
     console.log(`PostgreSQL already staged: ${path.relative(repoRoot, outDir)}`)
   } else {
-    const staged = process.platform === 'win32' ? await stageWindows() : await stageUnix()
+    const staged = targetPlatform === 'win32' ? await stageWindows() : await stageUnix()
     const size = directorySize(outDir) / (1024 * 1024)
     const libraries = countSharedLibraries(path.join(outDir, 'lib'))
     console.log('')
@@ -775,7 +888,7 @@ try {
       console.log(`  ${source.label}: ${source.url}`)
       console.log(`    sha256 ${source.sha256}`)
     }
-    if (process.platform !== 'win32' && staged.packages.length <= 2) {
+    if (targetPlatform !== 'win32' && staged.packages.length <= 2) {
       console.warn('  warning: no conda dependency packages resolved; pg/ may not be self-contained')
     }
   }

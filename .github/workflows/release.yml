@@ -97,5 +97,18 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.tar.gz
+          body: |
+            ## 下载指南
+
+            | 平台 | 架构 | 选择文件 |
+            | --- | --- | --- |
+            | Windows 10+ | x64 | `XuanYu-Agent-${{ github.ref_name }}-windows-x64-setup.exe`（安装版） · `XuanYu-Agent-${{ github.ref_name }}-windows-x64.zip`（免安装） |
+            | macOS 12+ | Apple Silicon（M 系列） | `XuanYu-Agent-${{ github.ref_name }}-mac-arm64.dmg`（安装版） · `XuanYu-Agent-${{ github.ref_name }}-mac-arm64.zip`（免安装） |
+            | macOS 12+ | Intel | `XuanYu-Agent-${{ github.ref_name }}-mac-x64.dmg`（安装版） · `XuanYu-Agent-${{ github.ref_name }}-mac-x64.zip`（免安装） |
+            | Linux | x64 | `XuanYu-Agent-${{ github.ref_name }}-linux-x64.AppImage`（免安装，`chmod +x` 运行） · `XuanYu-Agent-${{ github.ref_name }}-linux-x64.deb`（安装版） · `XuanYu-Agent-${{ github.ref_name }}-linux-x64.tar.gz`（免安装） |
+
+            内置便携 PostgreSQL 与 pgvector，装完即用，无需任何数据库配置。
+
+            > macOS 当前未做签名与公证：首次打开若被 Gatekeeper 拦截，右键 App 选择「打开」，或执行 `xattr -dr com.apple.quarantine /Applications/XuanYu\ Agent.app`。
           generate_release_notes: true
           draft: true

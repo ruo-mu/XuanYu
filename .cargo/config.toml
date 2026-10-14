@@ -11,3 +11,4 @@ registry = "sparse+https://rsproxy.cn/index/"
 # 注意：cargo 从仓库根构建时不会读取 crate 内的 .cargo/config.toml，故在此全局配置。
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
+linker = "rust-lld"

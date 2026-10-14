@@ -33,14 +33,13 @@ chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 regex = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream", "blocking"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
 thiserror = "1"
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "sync", "time"] }
 tracing = "0.1"
 url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
 tiktoken-rs = "0.7"
-rusqlite = { version = "0.32", features = ["bundled"] }
 clap = { version = "4", features = ["derive"] }
 axum = "0.8"
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }

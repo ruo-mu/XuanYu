@@ -21,6 +21,9 @@ dist/
 build/
 target/
 
+# Locally staged multi-platform PostgreSQL archives (fetched by scripts/fetch-postgres.mjs --dist)
+pg-dist/
+
 # electron-builder installer assets (build INPUTS: NSIS script, EULA, icons) — required to build the setup exe
 !apps/desktop/build/
 coverage/

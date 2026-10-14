@@ -6,6 +6,8 @@
 
 统计口径：致命 = 三端中至少一端无法启动或核心功能不可用；受损 = 能启动但行为错误或功能缺失；未验证 = 代码里有分支但从未在对应平台编译/运行过。
 
+> **状态标记**：本清单的落地情况见第四节「状态」列与第六节各阶段标注。
+
 ---
 
 ## 一、致命：macOS / Linux 现在跑不起来
@@ -136,38 +138,40 @@
 
 ## 四、清单汇总
 
-| # | 位置 | 影响端 | 问题 | 类别 |
-| --- | --- | --- | --- | --- |
-| 1 | `embedded_postgres.rs:15-39,214-245` | mac/linux | 下载源与安装流程只有 Windows | 致命 |
-| 2 | `embedded_postgres.rs:266-295` | mac/linux | `initdb.exe` 硬编码、无 Unix 权限处理 | 致命 |
-| 3 | `embedded_postgres.rs:297-345` | mac/linux | pgvector 只下载 Windows 二进制 | 致命 |
-| 4 | `embedded_postgres.rs:732` | mac/linux | `powershell Expand-Archive` 解压 | 致命 |
-| 5 | `package.json:32-38` | linux | `node-pty` 未允许构建、无 Linux 预编译产物 | 致命 |
-| 6 | `apps/desktop/package.json:114-135` | mac/linux | 只有 `dir` 产物，缺 dmg/AppImage/deb 及元数据 | 致命 |
-| 7 | `apps/desktop/build/icons/` | mac | 缺 `icon.icns` | 致命 |
-| 8 | `scripts/dev.ps1:9`、`scripts/build.ps1:4` | mac/linux | 硬编码本机路径 + PowerShell-only | 致命 |
-| 9 | `package.json:26-27` | mac/linux | `smoke` / `build:all` 绑定 PowerShell | 致命 |
-| 10 | `.github/workflows/ci.yml:7-32` | mac/linux | Rust job 只在 windows-latest | 致命 |
-| 11 | `.github/workflows/release.yml:2-37` | mac/linux | 无 mac/linux 构建与 target 矩阵 | 致命 |
-| 12 | `os_sandbox.rs:14-28` | win | 开启沙箱后 Windows 拒绝所有 exec | 受损 |
-| 13 | `os_sandbox.rs:65` | linux/mac | 硬编码 `/bin/bash`，不遵循 `$SHELL` | 受损 |
-| 14 | `lib.rs:10996` | mac/linux | 硬编码 `taskkill` | 受损 |
-| 15 | `mcp.rs:301-325`、`worker_session.rs:18-27` | mac/linux | 仅 Windows 的进程创建标志 | 受损 |
-| 16 | `lib.rs:10909-10931` | 三端 | 黑名单偏 Windows、子串误伤 | 受损 |
-| 17 | `BottomTerminalPanel.tsx:34` | mac/linux | 渲染层把默认 shell 固定为 `bash` | 受损 |
-| 18 | 仓库根 | 三端 | 缺 `.gitattributes` | 未验证 |
-| 19 | 5 个文件的 16 处条件编译 | mac/linux | 从未编译过 | 未验证 |
-| 20 | `README.md:21,33,196,217-219` + `i18n/*` | 三端 | 平台口径与路线图 | 未验证 |
-| 21 | `scripts/smoke.ps1` | 三端 | 缺 `--bin`、依赖外部数据库 | 未验证 |
-| 22 | `paths.rs:21-33,76-91`、`lib.rs:133` | 三端 | 目录布局不遵循平台惯例，日志未独立 | 受损 |
-| 23 | `installer.nsh:528-538`、`index.ts:32-49` | mac/linux | 数据落位只由 Windows 安装器驱动，`launch.conf` 是第二套机制 | 受损 |
-| 24 | `types.ts:348`、`paths.rs:41-55` | 三端 | `appDataDir` 是孤立字段、`resolve_app_dir_from_selection` 无调用方 | 受损 |
+| # | 位置 | 影响端 | 问题 | 类别 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `embedded_postgres.rs:15-39,214-245` | mac/linux | 下载源与安装流程只有 Windows | 致命 | 已完成 |
+| 2 | `embedded_postgres.rs:266-295` | mac/linux | `initdb.exe` 硬编码、无 Unix 权限处理 | 致命 | 已完成 |
+| 3 | `embedded_postgres.rs:297-345` | mac/linux | pgvector 只下载 Windows 二进制 | 致命 | 已完成 |
+| 4 | `embedded_postgres.rs:732` | mac/linux | `powershell Expand-Archive` 解压 | 致命 | 已完成 |
+| 5 | `package.json:32-38` | linux | `node-pty` 未允许构建、无 Linux 预编译产物 | 致命 | 已完成 |
+| 6 | `apps/desktop/package.json:114-135` | mac/linux | 只有 `dir` 产物，缺 dmg/AppImage/deb 及元数据 | 致命 | 已完成 |
+| 7 | `apps/desktop/build/icons/` | mac | 缺 `icon.icns` | 致命 | 已完成 |
+| 8 | `scripts/dev.ps1:9`、`scripts/build.ps1:4` | mac/linux | 硬编码本机路径 + PowerShell-only | 致命 | 已完成 |
+| 9 | `package.json:26-27` | mac/linux | `smoke` / `build:all` 绑定 PowerShell | 致命 | 已完成 |
+| 10 | `.github/workflows/ci.yml:7-32` | mac/linux | Rust job 只在 windows-latest | 致命 | 已完成 |
+| 11 | `.github/workflows/release.yml:2-37` | mac/linux | 无 mac/linux 构建与 target 矩阵 | 致命 | 已完成 |
+| 12 | `os_sandbox.rs:14-28` | win | 开启沙箱后 Windows 拒绝所有 exec | 受损 | 已完成 |
+| 13 | `os_sandbox.rs:65` | linux/mac | 硬编码 `/bin/bash`，不遵循 `$SHELL` | 受损 | 已完成 |
+| 14 | `lib.rs:10996` | mac/linux | 硬编码 `taskkill` | 受损 | 已完成 |
+| 15 | `mcp.rs:301-325`、`worker_session.rs:18-27` | mac/linux | 仅 Windows 的进程创建标志 | 受损 | 已完成 |
+| 16 | `lib.rs:10909-10931` | 三端 | 黑名单偏 Windows、子串误伤 | 受损 | 已完成（按约定仅做平台分层，匹配方式不动） |
+| 17 | `BottomTerminalPanel.tsx:34` | mac/linux | 渲染层把默认 shell 固定为 `bash` | 受损 | 已完成 |
+| 18 | 仓库根 | 三端 | 缺 `.gitattributes` | 未验证 | 已完成 |
+| 19 | 5 个文件的 16 处条件编译 | mac/linux | 从未编译过 | 未验证 | 已完成，待三端 CI 实跑 |
+| 20 | `README.md:21,33,196,217-219` + `i18n/*` | 三端 | 平台口径与路线图 | 未验证 | 已完成 |
+| 21 | `scripts/smoke.ps1` | 三端 | 缺 `--bin`、依赖外部数据库 | 未验证 | 已完成 |
+| 22 | `paths.rs:21-33,76-91`、`lib.rs:133` | 三端 | 目录布局不遵循平台惯例，日志未独立 | 受损 | 已完成 |
+| 23 | `installer.nsh:528-538`、`index.ts:32-49` | mac/linux | 数据落位只由 Windows 安装器驱动，`launch.conf` 是第二套机制 | 受损 | 已完成 |
+| 24 | `types.ts:348`、`paths.rs:41-55` | 三端 | `appDataDir` 是孤立字段、`resolve_app_dir_from_selection` 无调用方 | 受损 | 已完成（`appDataDir` 接入数据根覆盖链，孤立函数删除） |
 
 ---
 
 ## 五、决策点与已定结论
 
 ### 逐项结论
+
+> 落地状态：决策 1、3–10 已随本次三端改造落地；决策 2（签名与公证）按时序单列，本轮不做。
 
 1. **【已定】数据库形态：仅内置，用户不接触任何数据库配置**（取代原「双变体」方案）。三端产物一律内置 PostgreSQL + pgvector，装完即用。用户可见的数据库配置入口全部删除：连接串输入、主机/端口/用户名/密码表单、`db-external` 辅助命令、`memory.postgres.connectionString` 的用户写入路径、NSIS 数据库配置页。连接参数由应用固定（回环地址、固定端口、固定库名与角色），配置文件不再暴露可编辑的数据库字段。原「精简版」产物形态与对应运行时分流一并取消。
 
@@ -204,7 +208,7 @@
 
    架构覆盖：macOS `x86_64-apple-darwin` + `aarch64-apple-darwin`；Windows / Linux `x64`。
 
-6. **【已定】产物命名**：`XuanYu-Agent-<version>-<os>[-<arch>].<ext>`，例如 `XuanYu-Agent-0.1.0-preview-windows-setup.exe`、`XuanYu-Agent-0.1.0-preview-mac-arm64.dmg`、`XuanYu-Agent-0.1.0-preview-linux.AppImage`。mac 因双架构必须带 `arch`，其余平台可省。
+6. **【已定】产物命名**：`XuanYu-Agent-<version>-<os>-<arch>.<ext>`，三端一律标注架构，便于用户对号选择，例如 `XuanYu-Agent-0.1.0-preview-windows-x64-setup.exe`、`XuanYu-Agent-0.1.0-preview-mac-arm64.dmg`、`XuanYu-Agent-0.1.0-preview-linux-x64.AppImage`。
 
 7. **【已定】PostgreSQL 生命周期由应用持有**（取代原「精简版运行时行为」）：
 
@@ -270,13 +274,13 @@
 
 ## 六、建议实施顺序
 
-**阶段 1 · 让三端能构建、能启动**
+**阶段 1 · 让三端能构建、能启动** —— 已完成
 三端目录规范落地（2.7、决策 8：配置锚点 / 数据默认 / 缓存 / 日志 + 数据根三级链，清除 `launch.conf` 机制与孤立字段）→ `node-pty`（1.2）→ 脚本跨平台化（1.4，含 `smoke.ps1` 的 `--bin` 修正）→ 打包配置补齐（1.3、决策 5、决策 6）→ CI 加 mac/linux target 矩阵（1.5）→ 补 `.gitattributes`（三.1）。
 
-**阶段 2 · 让三端功能完整**
+**阶段 2 · 让三端功能完整** —— 已完成（代码与脚本）；macOS / Linux 侧的二进制获取与实机运行待回归
 内置 PostgreSQL 接入与三端实测（1.1、三.5，依赖决策 1：Windows 沿用 EDB、mac/linux 接 conda-forge，新增构建期获取脚本「下载 → 校验 → 剥离」，含 pgvector 与体积剥离）→ PostgreSQL 生命周期与权限最小化（决策 7）→ 清理用户数据库配置入口与失效机制（决策 10）→ 进程管理去 Windows 化（2.2）→ 沙箱三端补齐（2.1，依赖决策 4）→ 风险命令清单按平台分层（2.3）→ 终端 shell 策略统一（2.4，依赖决策 3）。
 
-**阶段 3 · 发布质量**
+**阶段 3 · 发布质量** —— 前三项已完成；末项「三端回归」待执行
 图标三端齐备（含 `.icns`）→ mac/linux 许可展示 → README 与 i18n 口径更新（三.6、三.7）→ 三端回归。签名与公证不入本阶段，单独排一轮（决策 2）。
 
 ---

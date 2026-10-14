@@ -10,7 +10,7 @@ description = "Session domain: SessionManager, threads, isolation, and message q
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
-serde = { workspace = true, features = ["derive"] }
+serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tokio.workspace = true

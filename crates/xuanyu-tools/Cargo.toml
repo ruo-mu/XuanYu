@@ -20,5 +20,5 @@ xuanyu-extensions = { path = "../xuanyu-extensions" }
 xuanyu-memory = { path = "../xuanyu-memory" }
 xuanyu-governance = { path = "../xuanyu-governance" }
 xuanyu-storage = { path = "../xuanyu-storage" }
-reqwest = { workspace = true, features = ["blocking"] }
+reqwest.workspace = true
 similar = { workspace = true }
