@@ -309,9 +309,11 @@ fn pg_command(paths: &EmbeddedPostgresPaths, program: &Path) -> Command {
     #[cfg(unix)]
     let command = {
         let lib_dir = paths.lib_dir();
+        let mut command = command;
         command
             .env("DYLD_LIBRARY_PATH", &lib_dir)
-            .env("LD_LIBRARY_PATH", &lib_dir)
+            .env("LD_LIBRARY_PATH", &lib_dir);
+        command
     };
     #[cfg(windows)]
     let _ = paths;
