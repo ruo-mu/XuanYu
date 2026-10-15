@@ -9,6 +9,7 @@
     "url": "https://github.com/ruo-mu/XuanYu"
   },
   "type": "module",
+  "homepage": "https://github.com/ruo-mu/XuanYu",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "pnpm run build:engine && electron-vite dev",
@@ -59,7 +60,7 @@
       "uninstallDisplayName": "XuanYu Agent",
       "runAfterFinish": true,
       "include": "build/installer.nsh",
-      "license": "build/license_zh_CN.txt",
+      "license": "build/licenses/license_zh_CN.txt",
       "installerLanguages": [
         "zh_CN",
         "en_US"
@@ -106,7 +107,7 @@
       ]
     },
     "appImage": {
-      "license": "build/license_zh_CN.txt"
+      "license": "build/licenses/license_zh_CN.txt"
     },
     "linux": {
       "icon": "build/icons/icon.png",
